@@ -4,7 +4,7 @@ import type { ClueType } from "../engine/clueSystem";
 import { parseHoldableContent } from "../engine/clueSystem";
 import { useGameStore } from "../store/gameStore";
 
-const HOLD_MS = 550;
+export const HOLD_MS = 550;
 
 type FeedbackState = "idle" | "holding" | "saved" | "duplicate";
 

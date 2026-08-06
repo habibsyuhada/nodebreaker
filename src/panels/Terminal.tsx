@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { playTypeTick } from "../audio/synth";
 import { HoldableText } from "../components/HoldableText";
 import { stripHoldMarkup } from "../engine/clueSystem";
 import { type TerminalTone, useGameStore } from "../store/gameStore";
@@ -29,9 +30,10 @@ const LINE_PAUSE_MS = 90;
 
 export function Terminal() {
   const lines = useGameStore((s) => s.terminalLines);
+  const revealCount = useGameStore((s) => s.terminalRevealCount);
+  const setRevealCount = useGameStore((s) => s.setTerminalRevealCount);
   const reducedMotion = usePrefersReducedMotion();
 
-  const [revealCount, setRevealCount] = useState(0);
   const [charIndex, setCharIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -45,14 +47,17 @@ export function Terminal() {
     const currentPlain = stripHoldMarkup(lines[revealCount].text);
     if (charIndex >= currentPlain.length) {
       const t = setTimeout(() => {
-        setRevealCount((r) => r + 1);
+        setRevealCount(revealCount + 1);
         setCharIndex(0);
       }, LINE_PAUSE_MS);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setCharIndex((c) => c + 1), TYPE_MS_PER_CHAR);
+    const t = setTimeout(() => {
+      if (charIndex % 2 === 0) playTypeTick();
+      setCharIndex((c) => c + 1);
+    }, TYPE_MS_PER_CHAR);
     return () => clearTimeout(t);
-  }, [lines, revealCount, charIndex, reducedMotion]);
+  }, [lines, revealCount, charIndex, reducedMotion, setRevealCount]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });

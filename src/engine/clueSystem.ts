@@ -96,3 +96,15 @@ export function addClue(existing: Clue[], input: ClueInput): { clues: Clue[]; ad
   const clue: Clue = { id: `clue-${clueCounter}`, ...input };
   return { clues: [...existing, clue], added: true };
 }
+
+/**
+ * Fast-forwards clueCounter past the highest id already in use — needed once, right after
+ * restoring persisted clues on load, so a freshly-saved clue's id never collides with (and
+ * silently overwrites, via a duplicate React key) a restored one.
+ */
+export function resumeClueCounter(clues: readonly Clue[]): void {
+  for (const c of clues) {
+    const match = /^clue-(\d+)$/.exec(c.id);
+    if (match) clueCounter = Math.max(clueCounter, Number(match[1]));
+  }
+}

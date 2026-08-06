@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { addClue } from "../engine/clueSystem";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { addClue, resumeClueCounter } from "../engine/clueSystem";
 import type { Clue, ClueInput } from "../engine/clueSystem";
 import { tryCombine } from "../engine/combineRules";
 import { findEntry, tryLogin } from "../engine/nodeState";
@@ -9,6 +10,7 @@ import {
   TRACE_MAX,
   traceLogFactId,
 } from "../engine/traceSystem";
+import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
 import { LEVELS } from "../levels";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
 
@@ -33,8 +35,12 @@ function makeLine(text: string, tone: TerminalTone): TerminalLine {
   return { id: `line-${lineCounter}`, text, tone };
 }
 
-function computeLevelComplete(level: LevelDef, accessGranted: boolean, discovered: Record<string, true>): boolean {
-  if (!accessGranted) return false;
+function computeLevelComplete(
+  level: LevelDef,
+  accessGrantedNodes: Record<string, true>,
+  discovered: Record<string, true>,
+): boolean {
+  if (Object.keys(accessGrantedNodes).length === 0) return false;
   const required = level.completionRequires ?? [];
   return required.every((f) => discovered[f]);
 }
@@ -48,16 +54,26 @@ interface GameState {
 
   currentPath: string[];
   openFilePath: string[] | null;
+  /** Set by tap-hold on a file/dir row in Files — shows its FileEntry.metadata without opening/entering it. */
+  inspectingPath: string[] | null;
 
   searchOpen: boolean;
   searchKeyword: string | null;
 
   discovered: Record<string, true>;
-  accessGranted: boolean;
+  /** Which node ids have had a successful login — per-node, since a level can require logging into several. */
+  accessGrantedNodes: Record<string, true>;
   traceLevel: number;
   burned: boolean;
 
   terminalLines: TerminalLine[];
+  /**
+   * How many terminalLines have finished their typewriter reveal. Lives here (not local Terminal
+   * state) so switching panels and back doesn't retype the whole scrollback — only genuinely new
+   * lines appended since last view animate in.
+   */
+  terminalRevealCount: number;
+  setTerminalRevealCount: (count: number) => void;
   clues: Clue[];
 
   workbenchOpen: boolean;
@@ -65,9 +81,16 @@ interface GameState {
   slotB: Clue | null;
   combineFeedback: CombineFeedback | null;
 
+  selectedClueId: string | null;
+  /** Clue id of a hash currently being cracked — null when no crack is in progress. */
+  crackingClueId: string | null;
+  transformFeedback: CombineFeedback | null;
+
   goToPath: (path: string[]) => void;
   openFile: (path: string[]) => void;
   closeFile: () => void;
+  openInspect: (path: string[]) => void;
+  closeInspect: () => void;
   openSearch: () => void;
   closeSearch: () => void;
   setSearchKeyword: (keyword: string) => void;
@@ -75,6 +98,13 @@ interface GameState {
   listUsers: () => void;
   checkTrace: () => void;
   deleteLogs: () => void;
+  falsifyLogs: () => void;
+  compareFiles: (compareId: string) => void;
+  pivotTo: (pivotId: string) => void;
+  escalatePrivilege: (escalationId: string) => void;
+  plantBackdoor: (backdoorId: string) => void;
+  checkConnections: () => void;
+  goQuiet: () => void;
   tickTrace: () => void;
   attemptQuickLogin: () => void;
   attemptLogin: () => void;
@@ -88,34 +118,93 @@ interface GameState {
   clearSlots: () => void;
   combineSlots: () => void;
   clearCombineFeedback: () => void;
+
+  toggleClueSelection: (id: string) => void;
+  decodeClue: () => void;
+  startCrackHash: () => void;
+  checkLeakDatabase: () => void;
+  clearTransformFeedback: () => void;
+
+  /** Wipes the localStorage save and returns to a fresh Level 1. */
+  resetProgress: () => void;
 }
 
 function briefingLines(level: LevelDef): TerminalLine[] {
   return level.briefing.map((text) => makeLine(text, "system"));
 }
 
-export const useGameStore = create<GameState>((set, get) => ({
-  activePanel: "terminal",
+/**
+ * What survives a reload: which level/node you're on and what you've earned there. Deliberately
+ * excludes transient navigation/UI state (active panel, file/search/workbench state, terminal
+ * scrollback and its reveal animation, in-flight selection/crack/transform feedback) — those
+ * reset fresh on load rather than trying to resume mid-interaction.
+ */
+interface PersistedState {
+  levelIndex: number;
+  currentNodeId: string;
+  discovered: Record<string, true>;
+  accessGrantedNodes: Record<string, true>;
+  traceLevel: number;
+  burned: boolean;
+  clues: Clue[];
+}
+
+const SAVE_KEY = "nodebreaker-save";
+
+export const useGameStore = create<GameState>()(
+  persist(
+    (set, get) => ({
+      activePanel: "terminal",
   setActivePanel: (panel) => set({ activePanel: panel }),
 
   level: LEVELS[0],
   currentNodeId: LEVELS[0].entryNodeId,
   currentPath: [],
   openFilePath: null,
+  inspectingPath: null,
   searchOpen: false,
   searchKeyword: null,
   discovered: {},
-  accessGranted: false,
+  accessGrantedNodes: {},
   traceLevel: 0,
   burned: false,
   terminalLines: briefingLines(LEVELS[0]),
+  terminalRevealCount: 0,
+  setTerminalRevealCount: (count) => set({ terminalRevealCount: count }),
   clues: [],
   workbenchOpen: false,
   slotA: null,
   slotB: null,
   combineFeedback: null,
+  selectedClueId: null,
+  crackingClueId: null,
+  transformFeedback: null,
 
-  goToPath: (path) => set({ currentPath: path, openFilePath: null }),
+  goToPath: (path) => {
+    const { level, currentNodeId, discovered } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const entry = node ? findEntry(node.root, path) : undefined;
+    const honeypot = entry?.kind === "dir" ? entry.honeypot : undefined;
+
+    if (honeypot && !discovered[honeypot.triggeredFact]) {
+      const lines = honeypot.warningText.map((t) => makeLine(t, "warn"));
+      set((state) => {
+        const next = clampTrace(state.traceLevel + honeypot.tracePenalty);
+        return {
+          currentPath: path,
+          openFilePath: null,
+          inspectingPath: null,
+          discovered: { ...state.discovered, [honeypot.triggeredFact]: true },
+          traceLevel: next,
+          burned: next >= TRACE_MAX,
+          terminalLines: [...state.terminalLines, ...lines],
+        };
+      });
+      return;
+    }
+
+    set({ currentPath: path, openFilePath: null, inspectingPath: null });
+  },
 
   openFile: (path) => {
     const { level, currentNodeId, discovered } = get();
@@ -126,19 +215,23 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const filename = path[path.length - 1];
     const lines: TerminalLine[] = [makeLine(`$ cat ${filename}`, "input")];
-    if (entry.readable === false) {
+    const locked = Boolean(entry.requiresFact && !discovered[entry.requiresFact]);
+    if (locked) {
+      lines.push(makeLine("PERMISSION DENIED — administrator privileges required.", "warn"));
+    } else if (entry.readable === false) {
       lines.push(makeLine("[binary data — not human-readable]", "warn"));
     } else {
       lines.push(...(entry.content ?? "").split("\n").map((l) => makeLine(l, "output")));
     }
 
     const nextDiscovered =
-      entry.grantsFact && !discovered[entry.grantsFact]
+      !locked && entry.grantsFact && !discovered[entry.grantsFact]
         ? { ...discovered, [entry.grantsFact]: true as const }
         : discovered;
 
     set((state) => ({
       openFilePath: path,
+      inspectingPath: null,
       currentPath: path.slice(0, -1),
       searchOpen: false,
       terminalLines: [...state.terminalLines, ...lines],
@@ -148,7 +241,10 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closeFile: () => set({ openFilePath: null }),
 
-  openSearch: () => set({ searchOpen: true, openFilePath: null }),
+  openInspect: (path) => set({ inspectingPath: path, openFilePath: null, searchOpen: false }),
+  closeInspect: () => set({ inspectingPath: null }),
+
+  openSearch: () => set({ searchOpen: true, openFilePath: null, inspectingPath: null }),
   closeSearch: () => set({ searchOpen: false }),
   setSearchKeyword: (keyword) => set({ searchKeyword: keyword }),
 
@@ -208,12 +304,140 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
 
+  falsifyLogs: () => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    if (!node?.logFalsification) return;
+    const lines: TerminalLine[] = [
+      makeLine("$ edit-log --target access.log --mode overwrite", "input"),
+      makeLine("Rewriting session entries to match routine traffic...", "output"),
+      makeLine("Logs falsified. Nothing here looks out of place.", "success"),
+    ];
+    const reduction = node.logFalsification.tracePenaltyReduction;
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      discovered: { ...state.discovered, "logs-falsified": true },
+      traceLevel: clampTrace(state.traceLevel - reduction),
+    }));
+  },
+
+  compareFiles: (compareId) => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const compare = node?.compares?.find((c) => c.id === compareId);
+    if (!node || !compare) return;
+    const entryA = findEntry(node.root, compare.pathA);
+    const entryB = findEntry(node.root, compare.pathB);
+    if (!entryA || !entryB) return;
+
+    const linesA = (entryA.content ?? "").split("\n");
+    const linesB = (entryB.content ?? "").split("\n");
+    const rowCount = Math.max(linesA.length, linesB.length);
+    const lines: TerminalLine[] = [
+      makeLine(`$ diff ${compare.pathA.at(-1)} ${compare.pathB.at(-1)}`, "input"),
+    ];
+    for (let i = 0; i < rowCount; i++) {
+      const a = linesA[i] ?? "";
+      const b = linesB[i] ?? "";
+      if (a === b) {
+        lines.push(makeLine(`  ${a}`, "output"));
+        continue;
+      }
+      if (a) lines.push(makeLine(`- ${a}`, "warn"));
+      if (b) lines.push(makeLine(`+ ${b}`, "success"));
+    }
+
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      discovered: compare.grantsFact
+        ? { ...state.discovered, [compare.grantsFact]: true }
+        : state.discovered,
+    }));
+  },
+
+  pivotTo: (pivotId) => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const pivot = node?.pivots?.find((p) => p.id === pivotId);
+    if (!node || !pivot) return;
+    const target = level.nodes.find((n) => n.id === pivot.targetNodeId);
+    if (!target) return;
+
+    const lines: TerminalLine[] = [
+      makeLine(`$ pivot --target ${target.ip}`, "input"),
+      makeLine(`Connection re-routed to ${target.ip}.`, "success"),
+    ];
+
+    set((state) => ({
+      currentNodeId: target.id,
+      currentPath: [],
+      openFilePath: null,
+      inspectingPath: null,
+      searchOpen: false,
+      searchKeyword: null,
+      terminalLines: [...state.terminalLines, ...lines],
+    }));
+  },
+
+  escalatePrivilege: (escalationId) => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const escalation = node?.privilegeEscalations?.find((e) => e.id === escalationId);
+    if (!node || !escalation) return;
+    const lines = escalation.narrationText.map((t) => makeLine(t, "success"));
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      discovered: { ...state.discovered, [escalation.grantsFact]: true },
+    }));
+  },
+
+  plantBackdoor: (backdoorId) => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const backdoor = node?.backdoors?.find((b) => b.id === backdoorId);
+    if (!node || !backdoor) return;
+    const lines = backdoor.narrationText.map((t) => makeLine(t, "success"));
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      discovered: { ...state.discovered, [backdoor.grantsFact]: true },
+    }));
+  },
+
+  checkConnections: () => {
+    const { level, currentNodeId, traceLevel } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    if (!node || node.adminOnlineThreshold === undefined) return;
+    const online = traceLevel >= node.adminOnlineThreshold;
+    const lines: TerminalLine[] = [
+      makeLine("$ check-connections", "input"),
+      makeLine(
+        online
+          ? "ADMIN ONLINE — an administrator is actively connected. Proceed carefully."
+          : "No other active sessions detected. Clear for now.",
+        online ? "warn" : "output",
+      ),
+    ];
+    set((state) => ({ terminalLines: [...state.terminalLines, ...lines] }));
+  },
+
+  goQuiet: () => {
+    const lines: TerminalLine[] = [
+      makeLine("$ disconnect --soft --reroute", "input"),
+      makeLine("Backing off and rerouting through a cleaner path...", "output"),
+      makeLine("Exposure reduced.", "success"),
+    ];
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      traceLevel: clampTrace(state.traceLevel - 20),
+    }));
+  },
+
   tickTrace: () => {
-    const { level, currentNodeId, traceLevel, burned, accessGranted, discovered } = get();
+    const { level, currentNodeId, traceLevel, burned, accessGrantedNodes, discovered } = get();
     if (burned) return;
     const node = level.nodes.find((n) => n.id === currentNodeId);
     if (!node?.traceEnabled) return;
-    if (computeLevelComplete(level, accessGranted, discovered)) return;
+    if (computeLevelComplete(level, accessGrantedNodes, discovered)) return;
 
     const next = clampTrace(traceLevel + 2);
     const newlyCrossed = AMBIENT_TRACE_LOGS.filter(
@@ -257,7 +481,9 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
-      accessGranted: success || state.accessGranted,
+      accessGrantedNodes: success
+        ? { ...state.accessGrantedNodes, [currentNodeId]: true }
+        : state.accessGrantedNodes,
     }));
   },
 
@@ -292,7 +518,9 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
-      accessGranted: success || state.accessGranted,
+      accessGrantedNodes: success
+        ? { ...state.accessGrantedNodes, [currentNodeId]: true }
+        : state.accessGrantedNodes,
     }));
   },
 
@@ -304,18 +532,23 @@ export const useGameStore = create<GameState>((set, get) => ({
       currentNodeId: level.entryNodeId,
       currentPath: [],
       openFilePath: null,
+      inspectingPath: null,
       searchOpen: false,
       searchKeyword: null,
       discovered: {},
-      accessGranted: false,
+      accessGrantedNodes: {},
       traceLevel: 0,
       burned: false,
       terminalLines: briefingLines(level),
+      terminalRevealCount: 0,
       clues: [],
       workbenchOpen: false,
       slotA: null,
       slotB: null,
       combineFeedback: null,
+      selectedClueId: null,
+      crackingClueId: null,
+      transformFeedback: null,
       activePanel: "terminal",
     });
   },
@@ -367,7 +600,142 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   clearCombineFeedback: () => set({ combineFeedback: null }),
-}));
+
+  toggleClueSelection: (id) =>
+    set((state) => ({ selectedClueId: state.selectedClueId === id ? null : id })),
+
+  decodeClue: () => {
+    const { selectedClueId, clues } = get();
+    const clue = clues.find((c) => c.id === selectedClueId);
+    if (!clue) return;
+    const result = tryDecode(clue);
+    if (result) {
+      const added = addClue(clues, {
+        type: result.type,
+        value: result.value,
+        label: result.label,
+        source: "decode",
+      });
+      set({
+        clues: added.clues,
+        selectedClueId: null,
+        transformFeedback: { kind: "success", message: `${result.value} — ${result.label}` },
+      });
+    } else {
+      set({
+        selectedClueId: null,
+        transformFeedback: { kind: "invalid", message: "Doesn't decode to anything useful." },
+      });
+    }
+  },
+
+  checkLeakDatabase: () => {
+    const { selectedClueId, clues } = get();
+    const clue = clues.find((c) => c.id === selectedClueId);
+    if (!clue) return;
+    const result = tryLeakCheck(clue);
+    if (result) {
+      const added = addClue(clues, {
+        type: result.type,
+        value: result.value,
+        label: result.label,
+        source: "leak database",
+      });
+      set({
+        clues: added.clues,
+        selectedClueId: null,
+        transformFeedback: { kind: "success", message: `${result.value} — ${result.label}` },
+      });
+    } else {
+      set({
+        selectedClueId: null,
+        transformFeedback: { kind: "invalid", message: "No match in the leak database." },
+      });
+    }
+  },
+
+  startCrackHash: () => {
+    const { selectedClueId, clues, crackingClueId } = get();
+    if (crackingClueId) return;
+    const clue = clues.find((c) => c.id === selectedClueId);
+    if (!clue || clue.type !== "hash") return;
+    const result = tryCrack(clue);
+
+    set((state) => ({
+      crackingClueId: clue.id,
+      terminalLines: [
+        ...state.terminalLines,
+        makeLine(`$ crack-hash ${clue.value}`, "input"),
+        makeLine("Running cracker against known wordlists...", "output"),
+      ],
+    }));
+
+    window.setTimeout(() => {
+      if (get().crackingClueId !== clue.id) return;
+      if (result) {
+        const added = addClue(get().clues, {
+          type: result.type,
+          value: result.value,
+          label: result.label,
+          source: "hash cracker",
+        });
+        set((state) => ({
+          clues: added.clues,
+          crackingClueId: null,
+          selectedClueId: null,
+          terminalLines: [...state.terminalLines, makeLine(`Password recovered: ${result.value}`, "success")],
+        }));
+      } else {
+        set((state) => ({
+          crackingClueId: null,
+          terminalLines: [...state.terminalLines, makeLine("Cracker failed — hash not in the wordlist.", "warn")],
+        }));
+      }
+    }, CRACK_DURATION_MS);
+  },
+
+  clearTransformFeedback: () => set({ transformFeedback: null }),
+
+  resetProgress: () => {
+    useGameStore.persist.clearStorage();
+    get().loadLevel(0);
+  },
+}),
+{
+  name: SAVE_KEY,
+  storage: createJSONStorage(() => localStorage),
+  version: 1,
+  partialize: (state): PersistedState => ({
+    levelIndex: state.level.index,
+    currentNodeId: state.currentNodeId,
+    discovered: state.discovered,
+    accessGrantedNodes: state.accessGrantedNodes,
+    traceLevel: state.traceLevel,
+    burned: state.burned,
+    clues: state.clues,
+  }),
+  merge: (persisted, current) => {
+    const p = persisted as Partial<PersistedState> | undefined;
+    if (!p || p.levelIndex === undefined) return current as GameState;
+    const level = LEVELS[p.levelIndex] ?? LEVELS[0];
+    const clues = p.clues ?? [];
+    resumeClueCounter(clues);
+    return {
+      ...(current as GameState),
+      level,
+      currentNodeId: p.currentNodeId ?? level.entryNodeId,
+      discovered: p.discovered ?? {},
+      accessGrantedNodes: p.accessGrantedNodes ?? {},
+      traceLevel: p.traceLevel ?? 0,
+      burned: p.burned ?? false,
+      clues,
+      terminalLines: briefingLines(level),
+      terminalRevealCount: 0,
+    };
+  },
+},
+  ),
+);
 
 export function useCurrentNode(): LevelNodeDef {
   return useGameStore((s) => {
@@ -378,5 +746,10 @@ export function useCurrentNode(): LevelNodeDef {
 }
 
 export function useLevelComplete(): boolean {
-  return useGameStore((s) => computeLevelComplete(s.level, s.accessGranted, s.discovered));
+  return useGameStore((s) => computeLevelComplete(s.level, s.accessGrantedNodes, s.discovered));
+}
+
+/** Whether the current node specifically has been logged into — most gating (login button, post-access actions) is per-node. */
+export function useCurrentNodeAccessGranted(): boolean {
+  return useGameStore((s) => Boolean(s.accessGrantedNodes[s.currentNodeId]));
 }

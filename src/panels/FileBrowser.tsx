@@ -1,6 +1,8 @@
+import { useRef } from "react";
 import { IconDoc, IconFiles } from "../art/icons";
-import { HoldableText } from "../components/HoldableText";
+import { HOLD_MS, HoldableText } from "../components/HoldableText";
 import { findEntry, pathToString, searchFilesystem } from "../engine/nodeState";
+import type { FileEntry } from "../levels/types";
 import { useCurrentNode, useGameStore } from "../store/gameStore";
 
 const PRESET_KEYWORDS = ["password", "admin", "key", "backup", "config", "email"];
@@ -33,11 +35,12 @@ function Breadcrumb({ path, onNavigate }: { path: string[]; onNavigate: (p: stri
 
 function SearchView() {
   const node = useCurrentNode();
+  const discovered = useGameStore((s) => s.discovered);
   const searchKeyword = useGameStore((s) => s.searchKeyword);
   const setSearchKeyword = useGameStore((s) => s.setSearchKeyword);
   const openFile = useGameStore((s) => s.openFile);
 
-  const results = searchKeyword ? searchFilesystem(node.root, searchKeyword) : [];
+  const results = searchKeyword ? searchFilesystem(node.root, searchKeyword, discovered) : [];
 
   return (
     <div className="flex h-full flex-col">
@@ -85,17 +88,97 @@ function SearchView() {
   );
 }
 
+interface EntryRowProps {
+  entry: FileEntry;
+  onOpen: () => void;
+  onInspect: () => void;
+}
+
+/** Tap opens/enters as before. Tap-hold reveals FileEntry.metadata in place instead, if present. */
+function EntryRow({ entry, onOpen, onInspect }: EntryRowProps) {
+  const timerRef = useRef<number | null>(null);
+  const heldRef = useRef(false);
+
+  function clearTimer() {
+    if (timerRef.current !== null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  function start() {
+    heldRef.current = false;
+    clearTimer();
+    timerRef.current = window.setTimeout(() => {
+      if (entry.metadata?.length) {
+        heldRef.current = true;
+        navigator.vibrate?.([15]);
+        onInspect();
+      }
+    }, HOLD_MS);
+  }
+
+  function end() {
+    clearTimer();
+    if (!heldRef.current) onOpen();
+    heldRef.current = false;
+  }
+
+  function cancel() {
+    clearTimer();
+    heldRef.current = false;
+  }
+
+  return (
+    <div
+      onPointerDown={start}
+      onPointerUp={end}
+      onPointerLeave={cancel}
+      onPointerCancel={cancel}
+      className="flex min-h-[44px] w-full touch-none select-none items-center gap-3 border-b border-border px-3 text-left text-xs text-text active:bg-panel-alt"
+    >
+      {entry.kind === "dir" ? <IconFiles size={18} /> : <IconDoc size={18} />}
+      <span className={entry.kind === "dir" ? "text-text-bright" : ""}>{entry.name}</span>
+    </div>
+  );
+}
+
 export function FileBrowser() {
   const node = useCurrentNode();
+  const discovered = useGameStore((s) => s.discovered);
   const currentPath = useGameStore((s) => s.currentPath);
   const openFilePath = useGameStore((s) => s.openFilePath);
+  const inspectingPath = useGameStore((s) => s.inspectingPath);
   const searchOpen = useGameStore((s) => s.searchOpen);
   const goToPath = useGameStore((s) => s.goToPath);
   const openFile = useGameStore((s) => s.openFile);
+  const openInspect = useGameStore((s) => s.openInspect);
+
+  if (inspectingPath) {
+    const entry = findEntry(node.root, inspectingPath);
+    const name = inspectingPath[inspectingPath.length - 1] ?? node.root.name;
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-2 border-b border-border bg-panel px-3 py-2 text-xs text-text-bright">
+          {entry?.kind === "dir" ? <IconFiles size={16} /> : <IconDoc size={16} />}
+          {name} — metadata
+        </div>
+        <div className="flex flex-col gap-2 p-3">
+          {(entry?.metadata ?? []).map((m, i) => (
+            <div key={i} className="flex items-baseline justify-between gap-3 text-xs">
+              <span className="shrink-0 text-text-dim">{m.label}</span>
+              <span className="text-right text-text-bright">{m.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (openFilePath) {
     const entry = findEntry(node.root, openFilePath);
     const filename = openFilePath[openFilePath.length - 1];
+    const locked = Boolean(entry?.requiresFact && !discovered[entry.requiresFact]);
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-2 border-b border-border bg-panel px-3 py-2 text-xs text-text-bright">
@@ -103,7 +186,9 @@ export function FileBrowser() {
           {filename}
         </div>
         <div className="flex-1 overflow-y-auto p-3">
-          {entry?.readable === false ? (
+          {locked ? (
+            <p className="text-xs text-warn">PERMISSION DENIED — administrator privileges required.</p>
+          ) : entry?.readable === false ? (
             <p className="text-xs text-warn">[binary data — not human-readable]</p>
           ) : (
             <pre className="selectable whitespace-pre-wrap font-mono text-xs text-text">
@@ -132,19 +217,16 @@ export function FileBrowser() {
           </p>
         ) : (
           entries.map((entry) => (
-            <button
+            <EntryRow
               key={entry.name}
-              type="button"
-              onClick={() =>
+              entry={entry}
+              onOpen={() =>
                 entry.kind === "dir"
                   ? goToPath([...currentPath, entry.name])
                   : openFile([...currentPath, entry.name])
               }
-              className="flex min-h-[44px] w-full items-center gap-3 border-b border-border px-3 text-left text-xs text-text active:bg-panel-alt"
-            >
-              {entry.kind === "dir" ? <IconFiles size={18} /> : <IconDoc size={18} />}
-              <span className={entry.kind === "dir" ? "text-text-bright" : ""}>{entry.name}</span>
-            </button>
+              onInspect={() => openInspect([...currentPath, entry.name])}
+            />
           ))
         )}
       </div>
