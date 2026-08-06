@@ -109,10 +109,13 @@ function useContextActions(): ContextAction[] {
   const workbenchOpen = useGameStore((s) => s.workbenchOpen);
   const slotA = useGameStore((s) => s.slotA);
   const slotB = useGameStore((s) => s.slotB);
+  const selectedClueId = useGameStore((s) => s.selectedClueId);
+  const crackingClueId = useGameStore((s) => s.crackingClueId);
   const runScan = useGameStore((s) => s.runScan);
   const listUsers = useGameStore((s) => s.listUsers);
   const checkTrace = useGameStore((s) => s.checkTrace);
   const deleteLogs = useGameStore((s) => s.deleteLogs);
+  const compareFiles = useGameStore((s) => s.compareFiles);
   const closeFile = useGameStore((s) => s.closeFile);
   const openSearch = useGameStore((s) => s.openSearch);
   const closeSearch = useGameStore((s) => s.closeSearch);
@@ -122,6 +125,8 @@ function useContextActions(): ContextAction[] {
   const setWorkbenchOpen = useGameStore((s) => s.setWorkbenchOpen);
   const combineSlots = useGameStore((s) => s.combineSlots);
   const clearSlots = useGameStore((s) => s.clearSlots);
+  const decodeClue = useGameStore((s) => s.decodeClue);
+  const startCrackHash = useGameStore((s) => s.startCrackHash);
   const node = useCurrentNode();
   const levelComplete = useLevelComplete();
 
@@ -137,6 +142,13 @@ function useContextActions(): ContextAction[] {
     }
     if (accessGranted && !discovered["logs-deleted"]) {
       actions.push({ id: "delete-logs", label: "Delete Logs", onClick: deleteLogs, danger: true });
+    }
+    for (const compare of node.compares ?? []) {
+      const ready = compare.requiredFacts.every((f) => discovered[f]);
+      const done = compare.grantsFact ? discovered[compare.grantsFact] : false;
+      if (ready && !done) {
+        actions.push({ id: `compare-${compare.id}`, label: compare.label, onClick: () => compareFiles(compare.id) });
+      }
     }
     if (node.quickLogin) {
       const loginReady = node.quickLogin.requiredFacts.every((f) => discovered[f]);
@@ -184,10 +196,23 @@ function useContextActions(): ContextAction[] {
       });
       return actions;
     }
-    if (clues.length >= 2) {
-      return [{ id: "open-workbench", label: "Workbench", onClick: () => setWorkbenchOpen(true) }];
+    const actions: ContextAction[] = [];
+    const selectedClue = clues.find((c) => c.id === selectedClueId);
+    if (selectedClue?.type === "encoded") {
+      actions.push({ id: "decode", label: "Decode", onClick: decodeClue });
     }
-    return [];
+    if (selectedClue?.type === "hash") {
+      actions.push({
+        id: "crack",
+        label: crackingClueId === selectedClue.id ? "Cracking..." : "Crack Hash",
+        onClick: startCrackHash,
+        disabled: crackingClueId !== null,
+      });
+    }
+    if (clues.length >= 2) {
+      actions.push({ id: "open-workbench", label: "Workbench", onClick: () => setWorkbenchOpen(true) });
+    }
+    return actions;
   }
 
   return [];

@@ -41,6 +41,23 @@ export interface QuickLogin {
   label: string;
 }
 
+/**
+ * A "compare two files" recon action: diffs two file contents line-by-line and prints the
+ * result to the terminal (unchanged lines plain, changed lines marked). Diff output can embed
+ * clue markup, e.g. so a changed hash line stays tap-hold-savable in the diff view itself.
+ */
+export interface FileCompareDef {
+  id: string;
+  /** Action-bar button label, e.g. "Compare Configs". */
+  label: string;
+  pathA: string[];
+  pathB: string[];
+  /** Facts required before this action appears — typically "both files have been read". */
+  requiredFacts: string[];
+  /** Fact id granted once the compare has been run. */
+  grantsFact?: string;
+}
+
 export interface LevelNodeDef {
   id: string;
   ip: string;
@@ -51,6 +68,7 @@ export interface LevelNodeDef {
   systemUsers: SystemUser[];
   quickLogin?: QuickLogin;
   traceEnabled: boolean;
+  compares?: FileCompareDef[];
 }
 
 export interface LevelDef {

@@ -9,6 +9,7 @@ import {
   TRACE_MAX,
   traceLogFactId,
 } from "../engine/traceSystem";
+import { CRACK_DURATION_MS, tryCrack, tryDecode } from "../engine/transformRules";
 import { LEVELS } from "../levels";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
 
@@ -65,6 +66,11 @@ interface GameState {
   slotB: Clue | null;
   combineFeedback: CombineFeedback | null;
 
+  selectedClueId: string | null;
+  /** Clue id of a hash currently being cracked — null when no crack is in progress. */
+  crackingClueId: string | null;
+  transformFeedback: CombineFeedback | null;
+
   goToPath: (path: string[]) => void;
   openFile: (path: string[]) => void;
   closeFile: () => void;
@@ -75,6 +81,7 @@ interface GameState {
   listUsers: () => void;
   checkTrace: () => void;
   deleteLogs: () => void;
+  compareFiles: (compareId: string) => void;
   tickTrace: () => void;
   attemptQuickLogin: () => void;
   attemptLogin: () => void;
@@ -88,6 +95,11 @@ interface GameState {
   clearSlots: () => void;
   combineSlots: () => void;
   clearCombineFeedback: () => void;
+
+  toggleClueSelection: (id: string) => void;
+  decodeClue: () => void;
+  startCrackHash: () => void;
+  clearTransformFeedback: () => void;
 }
 
 function briefingLines(level: LevelDef): TerminalLine[] {
@@ -114,6 +126,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   slotA: null,
   slotB: null,
   combineFeedback: null,
+  selectedClueId: null,
+  crackingClueId: null,
+  transformFeedback: null,
 
   goToPath: (path) => set({ currentPath: path, openFilePath: null }),
 
@@ -205,6 +220,40 @@ export const useGameStore = create<GameState>((set, get) => ({
       terminalLines: [...state.terminalLines, ...lines],
       discovered: { ...state.discovered, "logs-deleted": true },
       traceLevel: clampTrace(state.traceLevel - 15),
+    }));
+  },
+
+  compareFiles: (compareId) => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const compare = node?.compares?.find((c) => c.id === compareId);
+    if (!node || !compare) return;
+    const entryA = findEntry(node.root, compare.pathA);
+    const entryB = findEntry(node.root, compare.pathB);
+    if (!entryA || !entryB) return;
+
+    const linesA = (entryA.content ?? "").split("\n");
+    const linesB = (entryB.content ?? "").split("\n");
+    const rowCount = Math.max(linesA.length, linesB.length);
+    const lines: TerminalLine[] = [
+      makeLine(`$ diff ${compare.pathA.at(-1)} ${compare.pathB.at(-1)}`, "input"),
+    ];
+    for (let i = 0; i < rowCount; i++) {
+      const a = linesA[i] ?? "";
+      const b = linesB[i] ?? "";
+      if (a === b) {
+        lines.push(makeLine(`  ${a}`, "output"));
+        continue;
+      }
+      if (a) lines.push(makeLine(`- ${a}`, "warn"));
+      if (b) lines.push(makeLine(`+ ${b}`, "success"));
+    }
+
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      discovered: compare.grantsFact
+        ? { ...state.discovered, [compare.grantsFact]: true }
+        : state.discovered,
     }));
   },
 
@@ -316,6 +365,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       slotA: null,
       slotB: null,
       combineFeedback: null,
+      selectedClueId: null,
+      crackingClueId: null,
+      transformFeedback: null,
       activePanel: "terminal",
     });
   },
@@ -367,6 +419,76 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   clearCombineFeedback: () => set({ combineFeedback: null }),
+
+  toggleClueSelection: (id) =>
+    set((state) => ({ selectedClueId: state.selectedClueId === id ? null : id })),
+
+  decodeClue: () => {
+    const { selectedClueId, clues } = get();
+    const clue = clues.find((c) => c.id === selectedClueId);
+    if (!clue) return;
+    const result = tryDecode(clue);
+    if (result) {
+      const added = addClue(clues, {
+        type: result.type,
+        value: result.value,
+        label: result.label,
+        source: "decode",
+      });
+      set({
+        clues: added.clues,
+        selectedClueId: null,
+        transformFeedback: { kind: "success", message: `${result.value} — ${result.label}` },
+      });
+    } else {
+      set({
+        selectedClueId: null,
+        transformFeedback: { kind: "invalid", message: "Doesn't decode to anything useful." },
+      });
+    }
+  },
+
+  startCrackHash: () => {
+    const { selectedClueId, clues, crackingClueId } = get();
+    if (crackingClueId) return;
+    const clue = clues.find((c) => c.id === selectedClueId);
+    if (!clue || clue.type !== "hash") return;
+    const result = tryCrack(clue);
+
+    set((state) => ({
+      crackingClueId: clue.id,
+      terminalLines: [
+        ...state.terminalLines,
+        makeLine(`$ crack-hash ${clue.value}`, "input"),
+        makeLine("Running cracker against known wordlists...", "output"),
+      ],
+    }));
+
+    window.setTimeout(() => {
+      if (get().crackingClueId !== clue.id) return;
+      if (result) {
+        const added = addClue(get().clues, {
+          type: result.type,
+          value: result.value,
+          label: result.label,
+          source: "hash cracker",
+        });
+        set((state) => ({
+          clues: added.clues,
+          crackingClueId: null,
+          selectedClueId: null,
+          terminalLines: [...state.terminalLines, makeLine(`Password recovered: ${result.value}`, "success")],
+        }));
+      } else {
+        set((state) => ({
+          crackingClueId: null,
+          terminalLines: [...state.terminalLines, makeLine("Cracker failed — hash not in the wordlist.", "warn")],
+        }));
+      }
+    }, CRACK_DURATION_MS);
+  },
+
+  clearTransformFeedback: () => set({ transformFeedback: null }),
 }));
 
 export function useCurrentNode(): LevelNodeDef {

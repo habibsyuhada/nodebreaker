@@ -37,10 +37,11 @@ src/
                   combine success/invalid). No audio files.
   engine/         nodeState.ts (filesystem nav + login check + keyword search),
                   clueSystem.ts (clue types, [[type:value|label]] markup parser,
-                  dedup), combineRules.ts (Workbench recipes), traceSystem.ts
+                  dedup), combineRules.ts (Workbench recipes), transformRules.ts
+                  (single-input decode/crack recipes), traceSystem.ts
                   (trace constants + ambient log thresholds)
-  levels/         types.ts (LevelDef/LevelNodeDef/FileEntry/etc.), level01-03.ts,
-                  index.ts (LEVELS array — levels 4-8 not yet added)
+  levels/         types.ts (LevelDef/LevelNodeDef/FileEntry/FileCompareDef/etc.),
+                  level01-04.ts, index.ts (LEVELS array — levels 5-8 not yet added)
   panels/         Terminal.tsx, FileBrowser.tsx (+ built-in search view),
                   ClueInventory.tsx, Workbench.tsx
   components/     StatusBar.tsx, ActionBar.tsx, TabBar.tsx, HoldableText.tsx
@@ -99,26 +100,53 @@ App.tsx           panel switcher, contextual ActionBar logic, breach/burned
 3. **Ledger & Co. Accounting** (`level03.ts`) — first trace level. Introduces
    List Users, Check Trace, Delete Logs, and the accessGranted/levelComplete
    split (must delete logs post-login to finish).
+4. **Nimbus Startup** (`level04.ts`) — trace enabled. Introduces single-input
+   clue transforms (Decode, Crack Hash) via tap-to-select in the Clue
+   Inventory, and a "Compare Configs" recon action that diffs two files in
+   the Terminal. Base64 comment in a source file decodes to the username;
+   comparing old/new config reveals the rotated password hash; crack the
+   hash for the password; login as usual.
 
-## What's next (stages 6-10, not started)
+### Stage 6 mechanics added
+
+- **Clue selection**: `ClueInventory` chips are now tappable — tapping
+  toggles `selectedClueId` in the store (`toggleClueSelection`). Selecting a
+  clue surfaces single-input transform actions in the ActionBar instead of
+  requiring the Workbench's two-slot drag-and-drop.
+- **Decode** (`decodeClue` in `gameStore.ts`): instant, single-tap. Looks up
+  the selected `encoded` clue's exact value in `transformRules.ts`'s
+  `DECODE_RECIPES` (keyed by real base64 strings, decoded via `atob` for
+  authenticity) and adds the resulting clue. Gentle failure (no clue found)
+  mirrors Workbench's invalid-combo tone — no penalty, just feedback.
+- **Crack Hash** (`startCrackHash`): takes simulated time
+  (`CRACK_DURATION_MS` = 4s) via `window.setTimeout`, tracked by
+  `crackingClueId` so the ActionBar button disables/relabels
+  ("Cracking...") while running and only one crack can run at a time. Trace
+  keeps ticking throughout since `TraceTicker`'s interval is independent of
+  this. Looks up the hash in `transformRules.ts`'s `CRACK_RECIPES`.
+- **Compare Files** (`compareFiles`, driven by `LevelNodeDef.compares:
+  FileCompareDef[]`): a Terminal-panel contextual action (not Files-panel)
+  that line-diffs two file contents and prints the result with `-`/`+`
+  prefixes (warn/success tone), unchanged lines plain. Diff output can
+  embed `[[type:value|label]]` clue markup same as any other content — a
+  changed hash line stays tap-hold-savable straight from the diff view.
+  Gated by `requiredFacts` (typically "both files read") and marked done via
+  `grantsFact` so the action disappears once run.
+- New engine module: `src/engine/transformRules.ts` (mirrors
+  `combineRules.ts`'s recipe-table pattern, but single-input).
+- **Known quirk, not a stage-6 bug**: `Terminal.tsx` keeps its typewriter
+  `revealCount`/`charIndex` as local `useState`, so switching away from the
+  Terminal panel and back makes it unmount/remount and **retype the entire
+  scrollback from line 0**. Harmless functionally (tap-to-skip still works)
+  but gets slower as a level accumulates more lines — noticed while
+  browser-testing Level 4's longer diff output. Worth fixing before Level 8
+  (which will have the most accumulated lines) — likely fix: lift
+  reveal state up, or persist it, so only genuinely new lines animate.
+
+## What's next (stages 7-10, not started)
 
 Follow the original 10-stage build order from the brief (bottom of this
-file). We are done through **stage 5**. Next up:
-
-**Stage 6 — Advanced analysis actions, Level 4**
-- New engine pieces: a decode action (single-tap transform on an `encoded`
-  clue → `decoded`, e.g. base64/rot13-style), a hash cracker (`hash` clue →
-  `password`, takes simulated time while trace keeps ticking if enabled),
-  and a "compare two files" action (diff two file contents, surface what
-  changed — old vs new config, same username but new hash).
-- **Level 4 — Startup** (per brief): a source-code comment contains an
-  encoded string; compare old vs new config files — same username, new hash;
-  crack the hash while trace runs. Unlocks: decode, crack hash, compare
-  files.
-- Likely needs: `combineRules.ts` or a new `transformRules.ts` for
-  single-input transforms (decode, crack) vs the existing two-input Workbench
-  combine; a "processing takes time" pattern (setTimeout-driven, trace still
-  ticks) for the hash cracker — reuse the `TraceTicker` pattern if possible.
+file). We are done through **stage 6**. Next up:
 
 **Stage 7 — Multi-node + pivot + password reuse**
 - **Level 5 — Hospital** (2 nodes): public node only has staff emails;
@@ -166,12 +194,15 @@ file). We are done through **stage 5**. Next up:
   loses all progress.
 - No PWA manifest/service worker yet (stage 10) — not installable, not
   offline-capable yet despite the brief requiring it.
-- `combineRules.ts` has exactly one recipe. Levels 4+ will need more, and
-  probably a second kind of rule table for single-input transforms (decode,
-  crack) — don't force those into the two-slot Workbench UI, they should
-  probably be one-tap ActionBar actions on a selected/held clue instead.
+- `combineRules.ts` still has exactly one recipe (Level 2's username+pattern).
+  `transformRules.ts` (decode/crack, added stage 6) has one recipe each,
+  scoped to Level 4's exact clue values — Levels 5+ will need their own
+  entries in whichever table fits, keyed by that level's exact values.
 - `LevelNodeDef` has no `metadata` field on `FileEntry` yet — Level 6 needs
   it.
+- Terminal re-types the full scrollback from scratch every time you leave
+  and return to the Terminal panel (see stage 6 note above) — flag if it
+  becomes a real annoyance once Level 8's node count makes scrollback long.
 - No pivot/multi-node UI yet even though the data model
   (`LevelDef.nodes: LevelNodeDef[]`) already supports multiple nodes per
   level.
@@ -308,7 +339,7 @@ bawah layar.
    sebelum keluar. *(✅ selesai — level03.ts)*
 4. **Startup** — komentar source code berisi string ter-encode. Bandingkan
    config lama vs baru: username sama, hash baru. Pecahkan hash sambil trace
-   jalan. *(belum)*
+   jalan. *(✅ selesai — level04.ts)*
 5. **Rumah Sakit** — 2 node. Node A publik (daftar email staf), Node B
    internal (target). Satu staf pakai password sama di dua tempat. Tanpa
    petunjuk untuk bawa kredensial antar node. *(belum)*
@@ -344,9 +375,8 @@ dengan animasi ketik (bisa di-skip dengan tap). Hormati
 3. Sistem clue: tap-hold, panel inventory ✅
 4. Workbench drag-and-drop + aturan kombinasi (Level 2 selesai) ✅
 5. Trace system + log dinamis + hapus jejak (Level 3 selesai) ✅
-6. Aksi analisis lanjutan: decode, hash cracker, bandingkan file (Level 4)
-   ⬅ **next**
-7. Multi-node + pivot + password reuse (Level 5)
+6. Aksi analisis lanjutan: decode, hash cracker, bandingkan file (Level 4) ✅
+7. Multi-node + pivot + password reuse (Level 5) ⬅ **next**
 8. Honeypot, metadata, hak akses bertingkat, palsukan log (Level 6-7)
 9. Level 8 endgame + audio prosedural + polish (scanline, haptic, animasi
    ketik)
