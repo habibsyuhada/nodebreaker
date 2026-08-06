@@ -31,14 +31,23 @@ export interface SearchResult {
   snippet: string;
 }
 
-/** Recursively searches readable file contents (and names) for a keyword, case-insensitively. */
-export function searchFilesystem(root: FileEntry, keyword: string): SearchResult[] {
+/**
+ * Recursively searches readable file contents (and names) for a keyword, case-insensitively.
+ * Files still gated behind `requiresFact` (not yet discovered) are skipped entirely, same as
+ * unreadable binary files — a keyword index shouldn't surface content you can't actually open.
+ */
+export function searchFilesystem(
+  root: FileEntry,
+  keyword: string,
+  discovered: Record<string, true>,
+): SearchResult[] {
   const results: SearchResult[] = [];
   const lowerKeyword = keyword.toLowerCase();
 
   function visit(entry: FileEntry, path: string[]) {
     if (entry.kind === "file") {
       if (entry.readable === false) return;
+      if (entry.requiresFact && !discovered[entry.requiresFact]) return;
       const content = stripHoldMarkup(entry.content ?? "");
       const matchLine = content.split("\n").find((l) => l.toLowerCase().includes(lowerKeyword));
       const nameMatches = entry.name.toLowerCase().includes(lowerKeyword);

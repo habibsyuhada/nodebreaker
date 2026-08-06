@@ -100,6 +100,7 @@ function SettingsPlaceholder() {
 function useContextActions(): ContextAction[] {
   const activePanel = useGameStore((s) => s.activePanel);
   const openFilePath = useGameStore((s) => s.openFilePath);
+  const inspectingPath = useGameStore((s) => s.inspectingPath);
   const currentPath = useGameStore((s) => s.currentPath);
   const searchOpen = useGameStore((s) => s.searchOpen);
   const discovered = useGameStore((s) => s.discovered);
@@ -115,9 +116,12 @@ function useContextActions(): ContextAction[] {
   const listUsers = useGameStore((s) => s.listUsers);
   const checkTrace = useGameStore((s) => s.checkTrace);
   const deleteLogs = useGameStore((s) => s.deleteLogs);
+  const falsifyLogs = useGameStore((s) => s.falsifyLogs);
   const compareFiles = useGameStore((s) => s.compareFiles);
   const pivotTo = useGameStore((s) => s.pivotTo);
+  const escalatePrivilege = useGameStore((s) => s.escalatePrivilege);
   const closeFile = useGameStore((s) => s.closeFile);
+  const closeInspect = useGameStore((s) => s.closeInspect);
   const openSearch = useGameStore((s) => s.openSearch);
   const closeSearch = useGameStore((s) => s.closeSearch);
   const goToPath = useGameStore((s) => s.goToPath);
@@ -142,8 +146,19 @@ function useContextActions(): ContextAction[] {
     if (node.traceEnabled) {
       actions.push({ id: "check-trace", label: "Check Trace", onClick: checkTrace });
     }
-    if (accessGranted && !discovered["logs-deleted"]) {
+    if (accessGranted && !discovered["logs-deleted"] && !node.logFalsification) {
       actions.push({ id: "delete-logs", label: "Delete Logs", onClick: deleteLogs, danger: true });
+    }
+    if (node.logFalsification && accessGranted && !discovered["logs-falsified"]) {
+      const ready = node.logFalsification.requiredFacts.every((f) => discovered[f]);
+      if (ready) {
+        actions.push({
+          id: "falsify-logs",
+          label: node.logFalsification.label,
+          onClick: falsifyLogs,
+          danger: true,
+        });
+      }
     }
     for (const compare of node.compares ?? []) {
       const ready = compare.requiredFacts.every((f) => discovered[f]);
@@ -156,6 +171,13 @@ function useContextActions(): ContextAction[] {
       const ready = pivot.requiredFacts.every((f) => discovered[f]);
       if (ready) {
         actions.push({ id: `pivot-${pivot.id}`, label: pivot.label, onClick: () => pivotTo(pivot.id) });
+      }
+    }
+    for (const esc of node.privilegeEscalations ?? []) {
+      const ready = accessGranted && esc.requiredFacts.every((f) => discovered[f]);
+      const done = discovered[esc.grantsFact];
+      if (ready && !done) {
+        actions.push({ id: `escalate-${esc.id}`, label: esc.label, onClick: () => escalatePrivilege(esc.id) });
       }
     }
     if (node.quickLogin) {
@@ -174,6 +196,9 @@ function useContextActions(): ContextAction[] {
   }
 
   if (activePanel === "files") {
+    if (inspectingPath) {
+      return [{ id: "close-inspect", label: "Close", onClick: closeInspect }];
+    }
     if (openFilePath) {
       return [{ id: "close", label: "Close", onClick: closeFile }];
     }

@@ -4,6 +4,24 @@ export interface PortInfo {
   banner: string;
 }
 
+export interface FileMetadata {
+  label: string;
+  value: string;
+}
+
+/**
+ * A trace trap on a directory: entering it for the first time (tapping in from its parent
+ * listing) immediately spikes trace. The "it's fake" tell should live in `FileEntry.metadata`
+ * so a player who inspects (tap-hold) before entering can avoid the trap entirely.
+ */
+export interface HoneypotDef {
+  tracePenalty: number;
+  /** Fact id set the first time this fires, so re-entering the folder doesn't spike trace again. */
+  triggeredFact: string;
+  /** Terminal lines appended (warn tone) when the trap fires. */
+  warningText: string[];
+}
+
 export interface FileEntry {
   name: string;
   kind: "file" | "dir";
@@ -13,6 +31,16 @@ export interface FileEntry {
   readable?: boolean;
   /** Fact id granted the first time this file is opened (drives what actions unlock next). */
   grantsFact?: string;
+  /**
+   * Fact id required before this file's content can be read — shows a permission-denied message
+   * instead, and `grantsFact` (if any) is withheld until the fact is discovered. Used for
+   * privilege-escalation gating.
+   */
+  requiresFact?: string;
+  /** Tap-hold (not tap) reveals these fields in place, without opening/entering the entry. */
+  metadata?: FileMetadata[];
+  /** Only meaningful on a dir — see HoneypotDef. */
+  honeypot?: HoneypotDef;
   children?: FileEntry[];
 }
 
@@ -72,6 +100,35 @@ export interface PivotDef {
   requiredFacts: string[];
 }
 
+/**
+ * A one-tap privilege-escalation action (e.g. dropping a payload into a folder a scheduled
+ * admin-run job picks up). Instant, gated by requiredFacts, and only offered post-login
+ * (see the accessGranted check where this is surfaced in App.tsx). Once granted, its fact
+ * unlocks any `FileEntry.requiresFact` gates matching it.
+ */
+export interface PrivilegeEscalationDef {
+  id: string;
+  /** Action-bar button label, e.g. "Drop Payload". */
+  label: string;
+  requiredFacts: string[];
+  grantsFact: string;
+  /** Terminal lines appended (success tone) when it runs. */
+  narrationText: string[];
+}
+
+/**
+ * Replaces the generic "Delete Logs" action on nodes where outright deletion would raise
+ * suspicion. Presence of this field on a node hides Delete Logs entirely and offers Falsify
+ * Logs instead, gated by requiredFacts (typically: found a reference for what a normal log
+ * entry looks like).
+ */
+export interface LogFalsificationDef {
+  requiredFacts: string[];
+  tracePenaltyReduction: number;
+  /** Action-bar button label, e.g. "Falsify Logs". */
+  label: string;
+}
+
 export interface LevelNodeDef {
   id: string;
   ip: string;
@@ -84,6 +141,8 @@ export interface LevelNodeDef {
   traceEnabled: boolean;
   compares?: FileCompareDef[];
   pivots?: PivotDef[];
+  privilegeEscalations?: PrivilegeEscalationDef[];
+  logFalsification?: LogFalsificationDef;
 }
 
 export interface LevelDef {

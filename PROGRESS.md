@@ -41,8 +41,9 @@ src/
                   (single-input decode/crack/leak-check recipes), traceSystem.ts
                   (trace constants + ambient log thresholds)
   levels/         types.ts (LevelDef/LevelNodeDef/FileEntry/FileCompareDef/
-                  PivotDef/etc.), level01-05.ts, index.ts (LEVELS array —
-                  levels 6-8 not yet added)
+                  PivotDef/HoneypotDef/PrivilegeEscalationDef/
+                  LogFalsificationDef/etc.), level01-07.ts, index.ts
+                  (LEVELS array — level 8 not yet added)
   panels/         Terminal.tsx, FileBrowser.tsx (+ built-in search view),
                   ClueInventory.tsx, Workbench.tsx
   components/     StatusBar.tsx, ActionBar.tsx, TabBar.tsx, HoldableText.tsx
@@ -115,6 +116,22 @@ App.tsx           panel switcher, contextual ActionBar logic, breach/burned
    password (a reused one), then log in as usual — the credential clues
    carry over from the public node automatically since the Clue Inventory
    is level-wide, not per-node.
+6. **Fleetline Logistics** (`level06.ts`) — trace enabled from the start.
+   A too-tempting top-level folder (`payroll_export`) is a honeypot: tap-hold
+   it from the parent listing to inspect its metadata (owner/modified/note)
+   and learn it's fake for free, or tap straight in and eat a 35% trace
+   spike. The real data's location is hinted (not required) via a leaked
+   path in an error log; credentials sit in a handoff note reachable by
+   normal navigation. No completionRequires — login is enough.
+7. **Cityview Records Office** (`level07.ts`) — trace enabled. Introduces
+   privilege escalation and log falsification. Log in as a low-privilege
+   clerk from a helpdesk ticket note; the real records file is
+   `requiresFact`-gated and shows PERMISSION DENIED until you escalate —
+   found by reading a runbook (cron job reads a writable dropbox as root)
+   and a dropbox note, then tapping Drop Payload. This node also replaces
+   Delete Logs with Falsify Logs entirely (`LevelNodeDef.logFalsification`);
+   completionRequires both reading the now-unlocked records file and
+   falsifying logs, not just logging in.
 
 ### Stage 6 mechanics added
 
@@ -179,21 +196,58 @@ App.tsx           panel switcher, contextual ActionBar logic, breach/burned
   pivot (confirmed in the Level 5 browser test: IP and trace-enabled state
   both flip correctly right after pivoting).
 
-## What's next (stages 8-10, not started)
+### Stage 8 mechanics added
+
+- **Tap-hold on Files rows** (`FileBrowser.tsx`'s new `EntryRow`): the
+  directory listing switched from plain `<button onClick>` rows to
+  pointer-event rows (mirrors `HoldSpan`'s timer pattern, now exported as
+  `HOLD_MS` from `HoldableText.tsx`). A short tap still opens/enters exactly
+  as before; a 550ms hold instead calls `openInspect(path)` if
+  `entry.metadata` exists (silent no-op otherwise — most rows don't have
+  metadata, and holding one shouldn't feel like an error). This is a new
+  interaction verb, but reuses the same timing/haptic feel players already
+  learned from clue-saving, so it doesn't need a tutorial popup to explain.
+- **Metadata inspect view** (`inspectingPath` state, `openInspect`/
+  `closeInspect`): renders in place of the directory listing — same pattern
+  as `openFilePath`'s file-content view, just showing `FileEntry.metadata`
+  label/value rows instead. Deliberately does **not** touch `terminalLines`
+  — it's a look-without-committing action, not a logged one, so it shouldn't
+  cost anything or leave a trace-relevant record.
+- **Honeypot trap** (`FileEntry.honeypot`, checked in `goToPath`): entering
+  a honeypot dir for the first time (exact path match, gated by
+  `triggeredFact` so re-entering doesn't re-spike) appends warn-toned
+  terminal lines and bumps `traceLevel` by `tracePenalty` in the same
+  `set()` call — StatusBar's always-visible TRACE% is the primary feedback
+  channel here (no new toast/banner UI), consistent with how ambient trace
+  logs already work. The counterplay (tap-hold to inspect first) lives
+  entirely in the data — no separate "avoid the trap" code path needed
+  since inspecting never calls `goToPath`.
+- **Privilege gate** (`FileEntry.requiresFact`, checked in both `openFile`
+  and `FileBrowser`'s render): a locked file's `grantsFact` is withheld
+  until the fact is discovered, and it's excluded from
+  `searchFilesystem` results entirely (same treatment as `readable: false`
+  binary files) so keyword search can't leak gated content around the
+  permission check.
+- **Privilege escalation** (`escalatePrivilege`, driven by
+  `LevelNodeDef.privilegeEscalations`): instant, gated by `requiredFacts`
+  **and** `accessGranted` (narratively: you need an authenticated session
+  to use the exploit), grants a fact that unlocks matching
+  `requiresFact` gates. Same data-driven shape as `compares`/`pivots`.
+- **Log falsification** (`falsifyLogs`, driven by
+  `LevelNodeDef.logFalsification`): on a node with this field set, the
+  generic Delete Logs action is hidden entirely (`!node.logFalsification`
+  added to its condition) and Falsify Logs takes its place — same
+  trace-reduction shape as Delete Logs, different fact
+  (`logs-falsified` vs `logs-deleted`) and framing. The choice not to make
+  Delete Logs actively backfire (vs. simply removing it) was deliberate —
+  keeps the mechanic data-driven and low-complexity; the in-fiction "why"
+  is explained by a discoverable log-format reference file instead of a
+  punishing trap.
+
+## What's next (stages 9-10, not started)
 
 Follow the original 10-stage build order from the brief (bottom of this
-file). We are done through **stage 7**. Next up:
-
-**Stage 8 — Honeypot, metadata, privilege escalation, log falsification**
-- **Level 6 — Logistics**: an obviously-too-easy decoy folder that spikes
-  trace hard if touched: the "it's fake" tell lives in file metadata (needs
-  a metadata-inspection action + `FileEntry.metadata` field, not yet added);
-  the real path is hidden in an error log.
-- **Level 7 — Government Office**: log in as a regular user; the real data
-  needs admin. A scheduled process running as admin reads a
-  player-writable folder (privilege escalation via that). Deleting logs
-  outright raises suspicion here — must falsify logs instead (new action,
-  opposite tone from Level 3's "delete logs").
+file). We are done through **stage 8**. Next up:
 
 **Stage 9 — Level 8 endgame + full audio + polish**
 - **Level 8 — Corporate Network**: 4-6 connected nodes, one entry point,
@@ -223,14 +277,14 @@ file). We are done through **stage 7**. Next up:
   offline-capable yet despite the brief requiring it.
 - `combineRules.ts` still has exactly one recipe (Level 2's username+pattern).
   `transformRules.ts` (decode/crack/leak-check) has one recipe each per
-  table, scoped to specific levels' exact clue values — Levels 6+ will need
-  their own entries in whichever table fits, keyed by that level's exact
+  table, scoped to specific levels' exact clue values — Level 8 will need
+  its own entries in whichever table fits, keyed by that level's exact
   values.
-- `LevelNodeDef` has no `metadata` field on `FileEntry` yet — Level 6 needs
-  it.
 - Terminal re-types the full scrollback from scratch every time you leave
   and return to the Terminal panel (see stage 6 note above) — flag if it
   becomes a real annoyance once Level 8's node count makes scrollback long.
+  Levels 6-7 didn't hit this badly since neither has a huge line count, but
+  Level 8 (4-6 nodes) is exactly the case this was flagged for.
 - Trace level is still a single level-wide number, not per-node (stage 7
   didn't need to change this — Level 5's public node is simply
   `traceEnabled: false` so it never ticks there, and trace only starts
@@ -377,10 +431,11 @@ bawah layar.
    petunjuk untuk bawa kredensial antar node. *(✅ selesai — level05.ts)*
 6. **Logistik** — folder umpan yang terlalu mudah (trace besar). Petunjuk
    palsu ada di metadata file. Jalur asli tersembunyi di error log.
-   *(belum)*
+   *(✅ selesai — level06.ts)*
 7. **Kantor Pemerintah** — login user biasa; data butuh admin. Proses
    terjadwal jalan sebagai admin baca folder yang bisa ditulis pemain.
-   Hapus log total → makin mencurigakan — harus dipalsukan. *(belum)*
+   Hapus log total → makin mencurigakan — harus dipalsukan.
+   *(✅ selesai — level07.ts)*
 8. **Jaringan Korporat** — 4-6 node terhubung, satu pintu masuk. Admin bisa
    online sewaktu-waktu (cek koneksi aktif, sembunyi bila perlu). Data
    tersebar lintas node. Backdoor penting. *(belum)*
@@ -409,8 +464,7 @@ dengan animasi ketik (bisa di-skip dengan tap). Hormati
 5. Trace system + log dinamis + hapus jejak (Level 3 selesai) ✅
 6. Aksi analisis lanjutan: decode, hash cracker, bandingkan file (Level 4) ✅
 7. Multi-node + pivot + password reuse (Level 5) ✅
-8. Honeypot, metadata, hak akses bertingkat, palsukan log (Level 6-7)
-   ⬅ **next**
+8. Honeypot, metadata, hak akses bertingkat, palsukan log (Level 6-7) ✅
 9. Level 8 endgame + audio prosedural + polish (scanline, haptic, animasi
-   ketik)
+   ketik) ⬅ **next**
 10. PWA manifest + service worker + simpan progres di localStorage

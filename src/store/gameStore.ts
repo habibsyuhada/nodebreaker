@@ -49,6 +49,8 @@ interface GameState {
 
   currentPath: string[];
   openFilePath: string[] | null;
+  /** Set by tap-hold on a file/dir row in Files — shows its FileEntry.metadata without opening/entering it. */
+  inspectingPath: string[] | null;
 
   searchOpen: boolean;
   searchKeyword: string | null;
@@ -74,6 +76,8 @@ interface GameState {
   goToPath: (path: string[]) => void;
   openFile: (path: string[]) => void;
   closeFile: () => void;
+  openInspect: (path: string[]) => void;
+  closeInspect: () => void;
   openSearch: () => void;
   closeSearch: () => void;
   setSearchKeyword: (keyword: string) => void;
@@ -81,8 +85,10 @@ interface GameState {
   listUsers: () => void;
   checkTrace: () => void;
   deleteLogs: () => void;
+  falsifyLogs: () => void;
   compareFiles: (compareId: string) => void;
   pivotTo: (pivotId: string) => void;
+  escalatePrivilege: (escalationId: string) => void;
   tickTrace: () => void;
   attemptQuickLogin: () => void;
   attemptLogin: () => void;
@@ -116,6 +122,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   currentNodeId: LEVELS[0].entryNodeId,
   currentPath: [],
   openFilePath: null,
+  inspectingPath: null,
   searchOpen: false,
   searchKeyword: null,
   discovered: {},
@@ -132,7 +139,31 @@ export const useGameStore = create<GameState>((set, get) => ({
   crackingClueId: null,
   transformFeedback: null,
 
-  goToPath: (path) => set({ currentPath: path, openFilePath: null }),
+  goToPath: (path) => {
+    const { level, currentNodeId, discovered } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const entry = node ? findEntry(node.root, path) : undefined;
+    const honeypot = entry?.kind === "dir" ? entry.honeypot : undefined;
+
+    if (honeypot && !discovered[honeypot.triggeredFact]) {
+      const lines = honeypot.warningText.map((t) => makeLine(t, "warn"));
+      set((state) => {
+        const next = clampTrace(state.traceLevel + honeypot.tracePenalty);
+        return {
+          currentPath: path,
+          openFilePath: null,
+          inspectingPath: null,
+          discovered: { ...state.discovered, [honeypot.triggeredFact]: true },
+          traceLevel: next,
+          burned: next >= TRACE_MAX,
+          terminalLines: [...state.terminalLines, ...lines],
+        };
+      });
+      return;
+    }
+
+    set({ currentPath: path, openFilePath: null, inspectingPath: null });
+  },
 
   openFile: (path) => {
     const { level, currentNodeId, discovered } = get();
@@ -143,19 +174,23 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const filename = path[path.length - 1];
     const lines: TerminalLine[] = [makeLine(`$ cat ${filename}`, "input")];
-    if (entry.readable === false) {
+    const locked = Boolean(entry.requiresFact && !discovered[entry.requiresFact]);
+    if (locked) {
+      lines.push(makeLine("PERMISSION DENIED — administrator privileges required.", "warn"));
+    } else if (entry.readable === false) {
       lines.push(makeLine("[binary data — not human-readable]", "warn"));
     } else {
       lines.push(...(entry.content ?? "").split("\n").map((l) => makeLine(l, "output")));
     }
 
     const nextDiscovered =
-      entry.grantsFact && !discovered[entry.grantsFact]
+      !locked && entry.grantsFact && !discovered[entry.grantsFact]
         ? { ...discovered, [entry.grantsFact]: true as const }
         : discovered;
 
     set((state) => ({
       openFilePath: path,
+      inspectingPath: null,
       currentPath: path.slice(0, -1),
       searchOpen: false,
       terminalLines: [...state.terminalLines, ...lines],
@@ -165,7 +200,10 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   closeFile: () => set({ openFilePath: null }),
 
-  openSearch: () => set({ searchOpen: true, openFilePath: null }),
+  openInspect: (path) => set({ inspectingPath: path, openFilePath: null, searchOpen: false }),
+  closeInspect: () => set({ inspectingPath: null }),
+
+  openSearch: () => set({ searchOpen: true, openFilePath: null, inspectingPath: null }),
   closeSearch: () => set({ searchOpen: false }),
   setSearchKeyword: (keyword) => set({ searchKeyword: keyword }),
 
@@ -225,6 +263,23 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
 
+  falsifyLogs: () => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    if (!node?.logFalsification) return;
+    const lines: TerminalLine[] = [
+      makeLine("$ edit-log --target access.log --mode overwrite", "input"),
+      makeLine("Rewriting session entries to match routine traffic...", "output"),
+      makeLine("Logs falsified. Nothing here looks out of place.", "success"),
+    ];
+    const reduction = node.logFalsification.tracePenaltyReduction;
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      discovered: { ...state.discovered, "logs-falsified": true },
+      traceLevel: clampTrace(state.traceLevel - reduction),
+    }));
+  },
+
   compareFiles: (compareId) => {
     const { level, currentNodeId } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
@@ -276,9 +331,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       currentNodeId: target.id,
       currentPath: [],
       openFilePath: null,
+      inspectingPath: null,
       searchOpen: false,
       searchKeyword: null,
       terminalLines: [...state.terminalLines, ...lines],
+    }));
+  },
+
+  escalatePrivilege: (escalationId) => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const escalation = node?.privilegeEscalations?.find((e) => e.id === escalationId);
+    if (!node || !escalation) return;
+    const lines = escalation.narrationText.map((t) => makeLine(t, "success"));
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      discovered: { ...state.discovered, [escalation.grantsFact]: true },
     }));
   },
 
@@ -378,6 +446,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       currentNodeId: level.entryNodeId,
       currentPath: [],
       openFilePath: null,
+      inspectingPath: null,
       searchOpen: false,
       searchKeyword: null,
       discovered: {},
