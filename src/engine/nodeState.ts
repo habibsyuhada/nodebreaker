@@ -1,0 +1,59 @@
+import { stripHoldMarkup } from "./clueSystem";
+import type { FileEntry, LevelNodeDef } from "../levels/types";
+
+export function findEntry(root: FileEntry, path: readonly string[]): FileEntry | undefined {
+  let current: FileEntry = root;
+  for (const segment of path) {
+    if (current.kind !== "dir" || !current.children) return undefined;
+    const next = current.children.find((c) => c.name === segment);
+    if (!next) return undefined;
+    current = next;
+  }
+  return current;
+}
+
+export function listDir(root: FileEntry, path: readonly string[]): FileEntry[] {
+  const dir = findEntry(root, path);
+  if (!dir || dir.kind !== "dir") return [];
+  return dir.children ?? [];
+}
+
+export function pathToString(path: readonly string[]): string {
+  return path.length === 0 ? "/" : "/" + path.join("/");
+}
+
+export function tryLogin(node: LevelNodeDef, username: string, password: string): boolean {
+  return node.users.some((u) => u.username === username && u.password === password);
+}
+
+export interface SearchResult {
+  path: string[];
+  snippet: string;
+}
+
+/** Recursively searches readable file contents (and names) for a keyword, case-insensitively. */
+export function searchFilesystem(root: FileEntry, keyword: string): SearchResult[] {
+  const results: SearchResult[] = [];
+  const lowerKeyword = keyword.toLowerCase();
+
+  function visit(entry: FileEntry, path: string[]) {
+    if (entry.kind === "file") {
+      if (entry.readable === false) return;
+      const content = stripHoldMarkup(entry.content ?? "");
+      const matchLine = content.split("\n").find((l) => l.toLowerCase().includes(lowerKeyword));
+      const nameMatches = entry.name.toLowerCase().includes(lowerKeyword);
+      if (matchLine || nameMatches) {
+        results.push({ path, snippet: matchLine ?? entry.name });
+      }
+      return;
+    }
+    for (const child of entry.children ?? []) {
+      visit(child, [...path, child.name]);
+    }
+  }
+
+  for (const child of root.children ?? []) {
+    visit(child, [child.name]);
+  }
+  return results;
+}
