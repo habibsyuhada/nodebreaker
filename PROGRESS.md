@@ -33,8 +33,9 @@ src/
   art/            spriteEngine.ts (canvas renderer + <Sprite/>), sprites.ts
                   (16x16 grid sprite defs), icons.tsx (hand-drawn SVG rect-grid
                   icons for UI, e.g. tab bar)
-  audio/          synth.ts — procedural Web Audio beeps (clue saved/duplicate,
-                  combine success/invalid). No audio files.
+  audio/          synth.ts — procedural Web Audio: beeps (clue/combine
+                  feedback) and noise-buffer bursts (typing tick, glitch,
+                  ambient pulse). No audio files.
   engine/         nodeState.ts (filesystem nav + login check + keyword search),
                   clueSystem.ts (clue types, [[type:value|label]] markup parser,
                   dedup), combineRules.ts (Workbench recipes), transformRules.ts
@@ -42,8 +43,8 @@ src/
                   (trace constants + ambient log thresholds)
   levels/         types.ts (LevelDef/LevelNodeDef/FileEntry/FileCompareDef/
                   PivotDef/HoneypotDef/PrivilegeEscalationDef/
-                  LogFalsificationDef/etc.), level01-07.ts, index.ts
-                  (LEVELS array — level 8 not yet added)
+                  LogFalsificationDef/BackdoorDef/etc.), level01-08.ts,
+                  index.ts (LEVELS array — all 8 levels registered)
   panels/         Terminal.tsx, FileBrowser.tsx (+ built-in search view),
                   ClueInventory.tsx, Workbench.tsx
   components/     StatusBar.tsx, ActionBar.tsx, TabBar.tsx, HoldableText.tsx
@@ -132,6 +133,83 @@ App.tsx           panel switcher, contextual ActionBar logic, breach/burned
    Delete Logs with Falsify Logs entirely (`LevelNodeDef.logFalsification`);
    completionRequires both reading the now-unlocked records file and
    falsifying logs, not just logging in.
+8. **Halcyon Dynamics** (`level08.ts`) — the endgame, 4 connected nodes, one
+   entry point. Edge (direct creds, plant a backdoor, pivots branch to HR
+   and Finance) → HR (decode-revealed password, HR data, finds Core's
+   address) → Finance (leak-check-revealed password, `adminOnlineThreshold`
+   gates Check Connections/Hide, privilege escalation unlocks budget data,
+   plant a second backdoor) → Core (Workbench-combine-revealed password,
+   final Export Data action gated on **both** backdoors plus **both** data
+   facts). Every credential-discovery mechanic from stages 4-7 gets used
+   exactly once across the four nodes. completionRequires just
+   `["exported-core-data"]` since Export Data's own gating already enforces
+   the full chain.
+
+### Stage 9 mechanics added
+
+- **Per-node access** (`accessGrantedNodes: Record<string, true>` replacing
+  the old single `accessGranted: boolean`): required so a level can demand
+  logging into *several* nodes instead of one — previously, the first
+  successful login anywhere made the Login button vanish app-wide for the
+  rest of the level, which breaks the moment a level has more than one node
+  with a real login (Level 8's whole point). `computeLevelComplete` now
+  checks "at least one node accessed" instead of a single flag; per-node
+  gating (Login button, Delete/Falsify Logs, privilege escalations,
+  backdoors) reads a new `useCurrentNodeAccessGranted()` hook. Confirmed via
+  browser regression test that Levels 1 and 3 still work identically after
+  this change — single-node levels were never affected either way.
+- **Backdoors** (`BackdoorDef` + `plantBackdoor`): structurally identical to
+  `PrivilegeEscalationDef` (instant, gated by requiredFacts + accessGranted,
+  grants a fact) but kept as its own type/verb since a backdoor's fact is
+  meant to be *required elsewhere* — Level 8's final Export Data action
+  requires both `backdoor-edge` and `backdoor-finance` as proof of
+  persistent footholds, not to unlock a `requiresFact` file gate the way
+  privilege escalation does.
+- **Admin presence** (`LevelNodeDef.adminOnlineThreshold`, `checkConnections`,
+  `goQuiet`): deterministic rather than randomized (consistent with the rest
+  of the engine — trace ticks and ambient logs are all deterministic too).
+  Presence of the field surfaces both actions together. Check Connections
+  reports online/clear by comparing `traceLevel` against the threshold —
+  pure info, no state change. Hide (`goQuiet`) reduces trace by 20 and is
+  available any time the field is set, not gated by login, as a general
+  risk-management tool distinct from Delete/Falsify Logs (which require
+  access first).
+- **Terminal retype-on-remount fixed**: `revealCount` moved from local
+  `useState` into the store as `terminalRevealCount` (reset on `loadLevel`).
+  Switching panels and back no longer replays the entire scrollback —
+  previously-revealed lines render instantly; only genuinely new lines
+  (appended while the Terminal wasn't mounted) animate in. `charIndex`
+  stays local, so at most the one in-progress line re-animates briefly.
+- **Expanded procedural audio** (`audio/synth.ts`): added a noise-buffer
+  generator (`noiseBurst`, real white noise through a bandpass filter, not
+  another pure tone) backing three new sounds — `playTypeTick` (quiet
+  per-character click, throttled to every other character, wired into
+  `Terminal.tsx`'s existing reveal effect and skipped under reduced motion),
+  `playGlitch` (harsh double burst, fired once when trace first crosses
+  `TRACE_HOT_THRESHOLD` and again on `BurnedScreen` mount), `playAmbientPulse`
+  (low periodic drone, fired from `TraceTicker`'s existing interval callback
+  whenever `traceLevel > 0` — a "heartbeat" pulse rather than a true
+  continuous loop, to avoid persistent-audio-node lifecycle complexity under
+  React StrictMode's double-invoked effects).
+- **Visual polish**: new `.glitch-shift` CSS class (one-shot horizontal
+  jitter + red/green text-shadow split) applied to `BurnedScreen`'s heading;
+  automatically covered by the existing global
+  `prefers-reduced-motion` rule (wildcard selector), so no extra gating
+  needed. Haptic audit: added matching `navigator.vibrate` calls at the same
+  two new moments (hot-threshold crossing, burned) — existing haptic
+  vocabulary (success = single buzz, failure/warning = triple buzz) was
+  already consistent everywhere else and didn't need changes.
+- **ActionBar overflow bug found and fixed while testing Level 8**: Finance's
+  node can have up to 8 simultaneous actions (Scan/List/Trace/Delete Logs/
+  Pivot/Drop Payload/Check Connections/Hide). The old `flex-1` button row had
+  no overflow handling, and the app shell's `overflow-hidden` silently
+  clipped anything past the viewport — Playwright's `.click()` still found
+  and clicked the off-screen buttons (bypassing the visual clip), which
+  masked the bug in the first automated pass. A dedicated scroll-metrics
+  test (`scrollWidth` vs `clientWidth`) caught it. Fixed by making the bar
+  `overflow-x-auto` with natural-width (`shrink-0 grow basis-24`) buttons
+  instead of forced equal `flex-1` — few actions still fill the width, many
+  actions scroll instead of clip.
 
 ### Stage 6 mechanics added
 
@@ -244,21 +322,11 @@ App.tsx           panel switcher, contextual ActionBar logic, breach/burned
   is explained by a discoverable log-format reference file instead of a
   punishing trap.
 
-## What's next (stages 9-10, not started)
+## What's next (stage 10, not started)
 
 Follow the original 10-stage build order from the brief (bottom of this
-file). We are done through **stage 8**. Next up:
-
-**Stage 9 — Level 8 endgame + full audio + polish**
-- **Level 8 — Corporate Network**: 4-6 connected nodes, one entry point,
-  admin can come online any time (active-connections check + "hide"),
-  target data spread across nodes, backdoors matter.
-- Expand `audio/synth.ts` beyond clue/combine feedback: typing/keystroke
-  noise generator, glitch noise, ambient hum — per the brief's "Web Audio
-  API ... noise generator untuk suara ketikan dan glitch".
-- Polish pass: scanline/glitch canvas effects beyond the current CSS
-  scanline overlay, confirm `prefers-reduced-motion` is respected
-  everywhere, haptic feedback audit.
+file). We are done through **stage 9** — all 8 levels are built and
+playable end-to-end. Next up:
 
 **Stage 10 — PWA + persistence**
 - `manifest.json`, service worker (offline-first after first load),
@@ -275,23 +343,36 @@ file). We are done through **stage 8**. Next up:
   loses all progress.
 - No PWA manifest/service worker yet (stage 10) — not installable, not
   offline-capable yet despite the brief requiring it.
-- `combineRules.ts` still has exactly one recipe (Level 2's username+pattern).
-  `transformRules.ts` (decode/crack/leak-check) has one recipe each per
-  table, scoped to specific levels' exact clue values — Level 8 will need
-  its own entries in whichever table fits, keyed by that level's exact
-  values.
-- Terminal re-types the full scrollback from scratch every time you leave
-  and return to the Terminal panel (see stage 6 note above) — flag if it
-  becomes a real annoyance once Level 8's node count makes scrollback long.
-  Levels 6-7 didn't hit this badly since neither has a huge line count, but
-  Level 8 (4-6 nodes) is exactly the case this was flagged for.
-- Trace level is still a single level-wide number, not per-node (stage 7
-  didn't need to change this — Level 5's public node is simply
-  `traceEnabled: false` so it never ticks there, and trace only starts
-  accumulating once you pivot onto the monitored internal node). Revisit if
-  a future level wants two *simultaneously* trace-enabled nodes with
-  independently meaningful trace levels — current model would conflate
-  them into one shared number.
+- `combineRules.ts` still has exactly one recipe, now reused twice
+  (Level 2 and Level 8's Core node — same username+pattern→password recipe,
+  different clue values, no engine change needed since it matches by type
+  not value). `transformRules.ts` has one decode/crack/leak entry per level
+  that uses each mechanic; a future level reusing decode/crack/leak just
+  needs its own entries keyed by its own exact clue values.
+- Terminal's retype-on-remount issue (flagged in stage 6) is **fixed** —
+  `terminalRevealCount` now lives in the store, so switching panels and
+  back only animates genuinely new lines. Confirmed comfortable even on
+  Level 8's long multi-node scrollback.
+- Trace level is still a single level-wide number, not per-node. Level 8
+  has *three* simultaneously trace-enabled nodes (edge/hr/finance, plus
+  core) and this still didn't need to change — trace is framed as "how much
+  the whole intrusion session has been noticed," which reads fine as one
+  shared number even across pivots. Revisit only if a future level wants
+  trace on two nodes to mean genuinely different, non-additive things.
+- Level 8 shipped with **4** nodes, not the brief's "4-6" — a deliberate
+  scope call to keep the endgame's already-dense mechanic count (pivot,
+  backdoor, escalation, admin-online, all 4 credential-discovery methods)
+  testable and well-paced rather than padded. If it ever feels thin in
+  playtesting, the data model (`LevelDef.nodes: LevelNodeDef[]`) supports
+  adding 1-2 more without any engine changes.
+- `ActionBar` had a real overflow bug (buttons silently clipped past the
+  viewport, no scroll) that only Level 8's 8-simultaneous-action Finance
+  node exposed — fixed (see stage 9 notes above), but worth remembering
+  when browser-testing future crowded nodes: Playwright's `.click()`
+  bypasses visual clipping via `overflow-hidden`, so a passing automated
+  test does **not** prove every button is reachable by a real tap. Check
+  `scrollWidth` vs `clientWidth` (or just screenshot and look) when a node
+  has many simultaneous actions.
 - Every new mechanic so far follows the same pattern: add fields to
   `levels/types.ts` → add a store action in `gameStore.ts` → surface it as a
   contextual `ContextAction` in `useContextActions()` in `App.tsx`. Keep
@@ -438,7 +519,8 @@ bawah layar.
    *(✅ selesai — level07.ts)*
 8. **Jaringan Korporat** — 4-6 node terhubung, satu pintu masuk. Admin bisa
    online sewaktu-waktu (cek koneksi aktif, sembunyi bila perlu). Data
-   tersebar lintas node. Backdoor penting. *(belum)*
+   tersebar lintas node. Backdoor penting.
+   *(✅ selesai — level08.ts, 4 node)*
 
 Aturan onboarding: maksimal 3-5 aksi baru per level, **tanpa popup
 tutorial** — tiap aksi baru diperkenalkan lewat situasi di mana aksi itu
@@ -466,5 +548,6 @@ dengan animasi ketik (bisa di-skip dengan tap). Hormati
 7. Multi-node + pivot + password reuse (Level 5) ✅
 8. Honeypot, metadata, hak akses bertingkat, palsukan log (Level 6-7) ✅
 9. Level 8 endgame + audio prosedural + polish (scanline, haptic, animasi
-   ketik) ⬅ **next**
+   ketik) ✅
 10. PWA manifest + service worker + simpan progres di localStorage
+    ⬅ **next**

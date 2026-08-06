@@ -22,14 +22,14 @@ export function ActionBar({ actions }: ActionBarProps) {
   }
 
   return (
-    <div className="flex h-16 shrink-0 items-center gap-2 border-t border-border bg-panel-alt px-2">
+    <div className="flex h-16 shrink-0 items-center gap-2 overflow-x-auto border-t border-border bg-panel-alt px-2">
       {actions.map((action) => (
         <button
           key={action.id}
           type="button"
           disabled={action.disabled}
           onClick={action.onClick}
-          className={`min-h-[44px] flex-1 rounded border px-2 text-xs font-medium tracking-wide transition-colors ${
+          className={`min-h-[44px] shrink-0 grow basis-24 whitespace-nowrap rounded border px-3 text-xs font-medium tracking-wide transition-colors ${
             action.disabled
               ? "cursor-not-allowed border-border text-text-dim opacity-50"
               : action.danger

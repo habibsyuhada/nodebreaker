@@ -129,6 +129,22 @@ export interface LogFalsificationDef {
   label: string;
 }
 
+/**
+ * A one-tap "plant backdoor" action — same shape as PrivilegeEscalationDef (instant, gated by
+ * requiredFacts, only offered post-login) but kept as its own type since it's a distinct game
+ * verb: its grantsFact is meant to be required elsewhere (e.g. another node's completionRequires
+ * or a final gated action) as proof of a persistent foothold, not to unlock a requiresFact gate.
+ */
+export interface BackdoorDef {
+  id: string;
+  /** Action-bar button label, e.g. "Plant Backdoor". */
+  label: string;
+  requiredFacts: string[];
+  grantsFact: string;
+  /** Terminal lines appended (success tone) when it runs. */
+  narrationText: string[];
+}
+
 export interface LevelNodeDef {
   id: string;
   ip: string;
@@ -143,6 +159,14 @@ export interface LevelNodeDef {
   pivots?: PivotDef[];
   privilegeEscalations?: PrivilegeEscalationDef[];
   logFalsification?: LogFalsificationDef;
+  backdoors?: BackdoorDef[];
+  /**
+   * Trace % at which an admin is considered actively connected to this node. Presence of this
+   * field (regardless of value) is what surfaces the "Check Connections" and "Hide" actions —
+   * Check Connections reports online/clear by comparing traceLevel against it; Hide reduces
+   * traceLevel, usable any time (not gated by login) as a general risk-management tool.
+   */
+  adminOnlineThreshold?: number;
 }
 
 export interface LevelDef {

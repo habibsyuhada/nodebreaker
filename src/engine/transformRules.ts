@@ -11,6 +11,11 @@ const DECODE_RECIPES: Record<string, CombineResult> = {
     value: atob("ZGVwbG95LWJvdA=="),
     label: "Decoded from a base64 comment left in the source",
   },
+  "UmVjMHZlcnlTbGlwIzQ=": {
+    type: "password",
+    value: atob("UmVjMHZlcnlTbGlwIzQ="),
+    label: "Decoded from a base64 comment left in the sync script",
+  },
 };
 
 /** Keyed by the exact hash clue value — simulates a cracker matching against a known wordlist. */
@@ -27,6 +32,11 @@ const LEAK_RECIPES: Record<string, CombineResult> = {
   "jwilson@riversidehealth.org": {
     type: "password",
     value: "Sunshine88!",
+    label: "Found in a public breach dump — this account reuses it",
+  },
+  "finops@halcyondynamics.com": {
+    type: "password",
+    value: "Ledger$ecure9",
     label: "Found in a public breach dump — this account reuses it",
   },
 };

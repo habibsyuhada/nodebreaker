@@ -1,28 +1,47 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { BASE_PALETTE, LOCK_SPRITE } from "./art/sprites";
 import { Sprite } from "./art/spriteEngine";
+import { playAmbientPulse, playGlitch } from "./audio/synth";
 import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
-import { TRACE_TICK_INTERVAL_MS } from "./engine/traceSystem";
+import { TRACE_HOT_THRESHOLD, TRACE_TICK_INTERVAL_MS } from "./engine/traceSystem";
 import { LEVELS } from "./levels";
 import { ClueInventory } from "./panels/ClueInventory";
 import { FileBrowser } from "./panels/FileBrowser";
 import { Terminal } from "./panels/Terminal";
 import { Workbench } from "./panels/Workbench";
-import { useCurrentNode, useGameStore, useLevelComplete } from "./store/gameStore";
+import { useCurrentNode, useCurrentNodeAccessGranted, useGameStore, useLevelComplete } from "./store/gameStore";
 
 function TraceTicker() {
   const tickTrace = useGameStore((s) => s.tickTrace);
+  const traceLevel = useGameStore((s) => s.traceLevel);
   const traceEnabled = useCurrentNode().traceEnabled;
   const burned = useGameStore((s) => s.burned);
+  const levelId = useGameStore((s) => s.level.id);
   const levelComplete = useLevelComplete();
+  const hotAlertedRef = useRef(false);
+
+  useEffect(() => {
+    hotAlertedRef.current = false;
+  }, [levelId]);
 
   useEffect(() => {
     if (!traceEnabled || burned || levelComplete) return;
-    const id = window.setInterval(tickTrace, TRACE_TICK_INTERVAL_MS);
+    const id = window.setInterval(() => {
+      tickTrace();
+      if (traceLevel > 0) playAmbientPulse();
+    }, TRACE_TICK_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [traceEnabled, burned, levelComplete, tickTrace]);
+  }, [traceEnabled, burned, levelComplete, tickTrace, traceLevel]);
+
+  useEffect(() => {
+    if (traceLevel >= TRACE_HOT_THRESHOLD && !hotAlertedRef.current) {
+      hotAlertedRef.current = true;
+      navigator.vibrate?.([15, 40, 15]);
+      playGlitch();
+    }
+  }, [traceLevel]);
 
   return null;
 }
@@ -67,9 +86,14 @@ function BurnedScreen() {
   const level = useGameStore((s) => s.level);
   const loadLevel = useGameStore((s) => s.loadLevel);
 
+  useEffect(() => {
+    navigator.vibrate?.([30, 60, 30, 60, 30]);
+    playGlitch();
+  }, []);
+
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-      <p className="text-sm font-semibold tracking-widest text-warn crt-flicker">
+      <p className="text-sm font-semibold tracking-widest text-warn crt-flicker glitch-shift">
         CONNECTION LOST — NODE BURNED
       </p>
       <p className="text-xs text-text-dim">
@@ -104,7 +128,7 @@ function useContextActions(): ContextAction[] {
   const currentPath = useGameStore((s) => s.currentPath);
   const searchOpen = useGameStore((s) => s.searchOpen);
   const discovered = useGameStore((s) => s.discovered);
-  const accessGranted = useGameStore((s) => s.accessGranted);
+  const accessGranted = useCurrentNodeAccessGranted();
   const burned = useGameStore((s) => s.burned);
   const clues = useGameStore((s) => s.clues);
   const workbenchOpen = useGameStore((s) => s.workbenchOpen);
@@ -120,6 +144,9 @@ function useContextActions(): ContextAction[] {
   const compareFiles = useGameStore((s) => s.compareFiles);
   const pivotTo = useGameStore((s) => s.pivotTo);
   const escalatePrivilege = useGameStore((s) => s.escalatePrivilege);
+  const plantBackdoor = useGameStore((s) => s.plantBackdoor);
+  const checkConnections = useGameStore((s) => s.checkConnections);
+  const goQuiet = useGameStore((s) => s.goQuiet);
   const closeFile = useGameStore((s) => s.closeFile);
   const closeInspect = useGameStore((s) => s.closeInspect);
   const openSearch = useGameStore((s) => s.openSearch);
@@ -179,6 +206,17 @@ function useContextActions(): ContextAction[] {
       if (ready && !done) {
         actions.push({ id: `escalate-${esc.id}`, label: esc.label, onClick: () => escalatePrivilege(esc.id) });
       }
+    }
+    for (const bd of node.backdoors ?? []) {
+      const ready = accessGranted && bd.requiredFacts.every((f) => discovered[f]);
+      const done = discovered[bd.grantsFact];
+      if (ready && !done) {
+        actions.push({ id: `backdoor-${bd.id}`, label: bd.label, onClick: () => plantBackdoor(bd.id) });
+      }
+    }
+    if (node.adminOnlineThreshold !== undefined) {
+      actions.push({ id: "check-connections", label: "Check Connections", onClick: checkConnections });
+      actions.push({ id: "hide", label: "Hide", onClick: goQuiet });
     }
     if (node.quickLogin) {
       const loginReady = node.quickLogin.requiredFacts.every((f) => discovered[f]);

@@ -34,8 +34,12 @@ function makeLine(text: string, tone: TerminalTone): TerminalLine {
   return { id: `line-${lineCounter}`, text, tone };
 }
 
-function computeLevelComplete(level: LevelDef, accessGranted: boolean, discovered: Record<string, true>): boolean {
-  if (!accessGranted) return false;
+function computeLevelComplete(
+  level: LevelDef,
+  accessGrantedNodes: Record<string, true>,
+  discovered: Record<string, true>,
+): boolean {
+  if (Object.keys(accessGrantedNodes).length === 0) return false;
   const required = level.completionRequires ?? [];
   return required.every((f) => discovered[f]);
 }
@@ -56,11 +60,19 @@ interface GameState {
   searchKeyword: string | null;
 
   discovered: Record<string, true>;
-  accessGranted: boolean;
+  /** Which node ids have had a successful login — per-node, since a level can require logging into several. */
+  accessGrantedNodes: Record<string, true>;
   traceLevel: number;
   burned: boolean;
 
   terminalLines: TerminalLine[];
+  /**
+   * How many terminalLines have finished their typewriter reveal. Lives here (not local Terminal
+   * state) so switching panels and back doesn't retype the whole scrollback — only genuinely new
+   * lines appended since last view animate in.
+   */
+  terminalRevealCount: number;
+  setTerminalRevealCount: (count: number) => void;
   clues: Clue[];
 
   workbenchOpen: boolean;
@@ -89,6 +101,9 @@ interface GameState {
   compareFiles: (compareId: string) => void;
   pivotTo: (pivotId: string) => void;
   escalatePrivilege: (escalationId: string) => void;
+  plantBackdoor: (backdoorId: string) => void;
+  checkConnections: () => void;
+  goQuiet: () => void;
   tickTrace: () => void;
   attemptQuickLogin: () => void;
   attemptLogin: () => void;
@@ -126,10 +141,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   searchOpen: false,
   searchKeyword: null,
   discovered: {},
-  accessGranted: false,
+  accessGrantedNodes: {},
   traceLevel: 0,
   burned: false,
   terminalLines: briefingLines(LEVELS[0]),
+  terminalRevealCount: 0,
+  setTerminalRevealCount: (count) => set({ terminalRevealCount: count }),
   clues: [],
   workbenchOpen: false,
   slotA: null,
@@ -350,12 +367,53 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
 
+  plantBackdoor: (backdoorId) => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const backdoor = node?.backdoors?.find((b) => b.id === backdoorId);
+    if (!node || !backdoor) return;
+    const lines = backdoor.narrationText.map((t) => makeLine(t, "success"));
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      discovered: { ...state.discovered, [backdoor.grantsFact]: true },
+    }));
+  },
+
+  checkConnections: () => {
+    const { level, currentNodeId, traceLevel } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    if (!node || node.adminOnlineThreshold === undefined) return;
+    const online = traceLevel >= node.adminOnlineThreshold;
+    const lines: TerminalLine[] = [
+      makeLine("$ check-connections", "input"),
+      makeLine(
+        online
+          ? "ADMIN ONLINE — an administrator is actively connected. Proceed carefully."
+          : "No other active sessions detected. Clear for now.",
+        online ? "warn" : "output",
+      ),
+    ];
+    set((state) => ({ terminalLines: [...state.terminalLines, ...lines] }));
+  },
+
+  goQuiet: () => {
+    const lines: TerminalLine[] = [
+      makeLine("$ disconnect --soft --reroute", "input"),
+      makeLine("Backing off and rerouting through a cleaner path...", "output"),
+      makeLine("Exposure reduced.", "success"),
+    ];
+    set((state) => ({
+      terminalLines: [...state.terminalLines, ...lines],
+      traceLevel: clampTrace(state.traceLevel - 20),
+    }));
+  },
+
   tickTrace: () => {
-    const { level, currentNodeId, traceLevel, burned, accessGranted, discovered } = get();
+    const { level, currentNodeId, traceLevel, burned, accessGrantedNodes, discovered } = get();
     if (burned) return;
     const node = level.nodes.find((n) => n.id === currentNodeId);
     if (!node?.traceEnabled) return;
-    if (computeLevelComplete(level, accessGranted, discovered)) return;
+    if (computeLevelComplete(level, accessGrantedNodes, discovered)) return;
 
     const next = clampTrace(traceLevel + 2);
     const newlyCrossed = AMBIENT_TRACE_LOGS.filter(
@@ -399,7 +457,9 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
-      accessGranted: success || state.accessGranted,
+      accessGrantedNodes: success
+        ? { ...state.accessGrantedNodes, [currentNodeId]: true }
+        : state.accessGrantedNodes,
     }));
   },
 
@@ -434,7 +494,9 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
-      accessGranted: success || state.accessGranted,
+      accessGrantedNodes: success
+        ? { ...state.accessGrantedNodes, [currentNodeId]: true }
+        : state.accessGrantedNodes,
     }));
   },
 
@@ -450,10 +512,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       searchOpen: false,
       searchKeyword: null,
       discovered: {},
-      accessGranted: false,
+      accessGrantedNodes: {},
       traceLevel: 0,
       burned: false,
       terminalLines: briefingLines(level),
+      terminalRevealCount: 0,
       clues: [],
       workbenchOpen: false,
       slotA: null,
@@ -619,5 +682,10 @@ export function useCurrentNode(): LevelNodeDef {
 }
 
 export function useLevelComplete(): boolean {
-  return useGameStore((s) => computeLevelComplete(s.level, s.accessGranted, s.discovered));
+  return useGameStore((s) => computeLevelComplete(s.level, s.accessGrantedNodes, s.discovered));
+}
+
+/** Whether the current node specifically has been logged into — most gating (login button, post-access actions) is per-node. */
+export function useCurrentNodeAccessGranted(): boolean {
+  return useGameStore((s) => Boolean(s.accessGrantedNodes[s.currentNodeId]));
 }

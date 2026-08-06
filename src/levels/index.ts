@@ -5,6 +5,7 @@ import { LEVEL_04 } from "./level04";
 import { LEVEL_05 } from "./level05";
 import { LEVEL_06 } from "./level06";
 import { LEVEL_07 } from "./level07";
+import { LEVEL_08 } from "./level08";
 import type { LevelDef } from "./types";
 
 export const LEVELS: LevelDef[] = [
@@ -15,6 +16,7 @@ export const LEVELS: LevelDef[] = [
   LEVEL_05,
   LEVEL_06,
   LEVEL_07,
+  LEVEL_08,
 ];
 
 export type { LevelDef } from "./types";
