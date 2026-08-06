@@ -38,10 +38,11 @@ src/
   engine/         nodeState.ts (filesystem nav + login check + keyword search),
                   clueSystem.ts (clue types, [[type:value|label]] markup parser,
                   dedup), combineRules.ts (Workbench recipes), transformRules.ts
-                  (single-input decode/crack recipes), traceSystem.ts
+                  (single-input decode/crack/leak-check recipes), traceSystem.ts
                   (trace constants + ambient log thresholds)
-  levels/         types.ts (LevelDef/LevelNodeDef/FileEntry/FileCompareDef/etc.),
-                  level01-04.ts, index.ts (LEVELS array — levels 5-8 not yet added)
+  levels/         types.ts (LevelDef/LevelNodeDef/FileEntry/FileCompareDef/
+                  PivotDef/etc.), level01-05.ts, index.ts (LEVELS array —
+                  levels 6-8 not yet added)
   panels/         Terminal.tsx, FileBrowser.tsx (+ built-in search view),
                   ClueInventory.tsx, Workbench.tsx
   components/     StatusBar.tsx, ActionBar.tsx, TabBar.tsx, HoldableText.tsx
@@ -106,6 +107,14 @@ App.tsx           panel switcher, contextual ActionBar logic, breach/burned
    the Terminal. Base64 comment in a source file decodes to the username;
    comparing old/new config reveals the rotated password hash; crack the
    hash for the password; login as usual.
+5. **Riverside Health** (`level05.ts`) — first multi-node level (2 nodes).
+   Public patient-portal node has no valid logins of its own; reading its
+   `robots.txt` leaks the internal node's IP, and its staff contact page
+   holds both a username and an email for the same person. Pivot to the
+   internal node, run the email through Check Leak DB to recover the
+   password (a reused one), then log in as usual — the credential clues
+   carry over from the public node automatically since the Clue Inventory
+   is level-wide, not per-node.
 
 ### Stage 6 mechanics added
 
@@ -143,19 +152,37 @@ App.tsx           panel switcher, contextual ActionBar logic, breach/burned
   (which will have the most accumulated lines) — likely fix: lift
   reveal state up, or persist it, so only genuinely new lines animate.
 
-## What's next (stages 7-10, not started)
+### Stage 7 mechanics added
+
+- **Pivot** (`pivotTo`, driven by `LevelNodeDef.pivots: PivotDef[]`): a
+  Terminal-panel contextual action (same loop pattern as `compares`) that
+  switches `currentNodeId` to another node in the level once its
+  `requiredFacts` are discovered. Resets navigation state (`currentPath`,
+  `openFilePath`, `searchOpen`) the same way `loadLevel` does, but
+  deliberately leaves `clues`, `discovered`, `accessGranted`, and
+  `traceLevel` untouched — those represent player knowledge/session state,
+  not per-node state, so credentials found on one node keep working after
+  pivoting (this is what makes password reuse work with zero extra
+  plumbing: `attemptLogin` already tries every username×password clue in
+  the shared inventory against whichever node is current). Appends
+  `$ pivot --target <ip>` narration to the terminal. Pivots are
+  bidirectional per-level by defining a `PivotDef` on each side (Level 5's
+  internal node pivots back to the public one with empty `requiredFacts` —
+  no gate needed since you already know the address once you're there).
+- **Check Leak DB** (`checkLeakDatabase`): instant, single-tap, same shape
+  as `decodeClue` — select an `email` clue, tap the action, look up
+  `transformRules.ts`'s new `LEAK_RECIPES` table (keyed by exact email
+  value) and add the resulting `password` clue. Gentle failure on no match,
+  same tone as decode/crack.
+- `StatusBar` needed no changes — it already reads the node via
+  `useCurrentNode()`, so the NODE/TRACE display updates automatically on
+  pivot (confirmed in the Level 5 browser test: IP and trace-enabled state
+  both flip correctly right after pivoting).
+
+## What's next (stages 8-10, not started)
 
 Follow the original 10-stage build order from the brief (bottom of this
-file). We are done through **stage 6**. Next up:
-
-**Stage 7 — Multi-node + pivot + password reuse**
-- **Level 5 — Hospital** (2 nodes): public node only has staff emails;
-  internal node is the real target; one staff member reuses their password
-  across both. No in-game hint to carry credentials between nodes.
-- Needs: node-to-node "pivot" action, `currentNodeId` switching UI (already
-  supported structurally by `LevelNodeDef[]` + `currentNodeId`, but no pivot
-  action/UI exists yet), and an "leak database"/"password reuse" check
-  action per the original action list.
+file). We are done through **stage 7**. Next up:
 
 **Stage 8 — Honeypot, metadata, privilege escalation, log falsification**
 - **Level 6 — Logistics**: an obviously-too-easy decoy folder that spikes
@@ -195,17 +222,22 @@ file). We are done through **stage 6**. Next up:
 - No PWA manifest/service worker yet (stage 10) — not installable, not
   offline-capable yet despite the brief requiring it.
 - `combineRules.ts` still has exactly one recipe (Level 2's username+pattern).
-  `transformRules.ts` (decode/crack, added stage 6) has one recipe each,
-  scoped to Level 4's exact clue values — Levels 5+ will need their own
-  entries in whichever table fits, keyed by that level's exact values.
+  `transformRules.ts` (decode/crack/leak-check) has one recipe each per
+  table, scoped to specific levels' exact clue values — Levels 6+ will need
+  their own entries in whichever table fits, keyed by that level's exact
+  values.
 - `LevelNodeDef` has no `metadata` field on `FileEntry` yet — Level 6 needs
   it.
 - Terminal re-types the full scrollback from scratch every time you leave
   and return to the Terminal panel (see stage 6 note above) — flag if it
   becomes a real annoyance once Level 8's node count makes scrollback long.
-- No pivot/multi-node UI yet even though the data model
-  (`LevelDef.nodes: LevelNodeDef[]`) already supports multiple nodes per
-  level.
+- Trace level is still a single level-wide number, not per-node (stage 7
+  didn't need to change this — Level 5's public node is simply
+  `traceEnabled: false` so it never ticks there, and trace only starts
+  accumulating once you pivot onto the monitored internal node). Revisit if
+  a future level wants two *simultaneously* trace-enabled nodes with
+  independently meaningful trace levels — current model would conflate
+  them into one shared number.
 - Every new mechanic so far follows the same pattern: add fields to
   `levels/types.ts` → add a store action in `gameStore.ts` → surface it as a
   contextual `ContextAction` in `useContextActions()` in `App.tsx`. Keep
@@ -342,7 +374,7 @@ bawah layar.
    jalan. *(✅ selesai — level04.ts)*
 5. **Rumah Sakit** — 2 node. Node A publik (daftar email staf), Node B
    internal (target). Satu staf pakai password sama di dua tempat. Tanpa
-   petunjuk untuk bawa kredensial antar node. *(belum)*
+   petunjuk untuk bawa kredensial antar node. *(✅ selesai — level05.ts)*
 6. **Logistik** — folder umpan yang terlalu mudah (trace besar). Petunjuk
    palsu ada di metadata file. Jalur asli tersembunyi di error log.
    *(belum)*
@@ -376,8 +408,9 @@ dengan animasi ketik (bisa di-skip dengan tap). Hormati
 4. Workbench drag-and-drop + aturan kombinasi (Level 2 selesai) ✅
 5. Trace system + log dinamis + hapus jejak (Level 3 selesai) ✅
 6. Aksi analisis lanjutan: decode, hash cracker, bandingkan file (Level 4) ✅
-7. Multi-node + pivot + password reuse (Level 5) ⬅ **next**
+7. Multi-node + pivot + password reuse (Level 5) ✅
 8. Honeypot, metadata, hak akses bertingkat, palsukan log (Level 6-7)
+   ⬅ **next**
 9. Level 8 endgame + audio prosedural + polish (scanline, haptic, animasi
    ketik)
 10. PWA manifest + service worker + simpan progres di localStorage

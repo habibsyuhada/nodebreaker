@@ -58,6 +58,20 @@ export interface FileCompareDef {
   grantsFact?: string;
 }
 
+/**
+ * A "pivot" recon/access action: jumps `currentNodeId` to another node in the same level once
+ * its required facts are discovered (e.g. an internal IP found on a public-facing node). Clues,
+ * discovered facts, and trace level all carry over — only navigation state (path/open file/search)
+ * resets, same as loading a fresh node.
+ */
+export interface PivotDef {
+  id: string;
+  targetNodeId: string;
+  /** Action-bar button label, e.g. "Pivot to 192.168.20.5". */
+  label: string;
+  requiredFacts: string[];
+}
+
 export interface LevelNodeDef {
   id: string;
   ip: string;
@@ -69,6 +83,7 @@ export interface LevelNodeDef {
   quickLogin?: QuickLogin;
   traceEnabled: boolean;
   compares?: FileCompareDef[];
+  pivots?: PivotDef[];
 }
 
 export interface LevelDef {

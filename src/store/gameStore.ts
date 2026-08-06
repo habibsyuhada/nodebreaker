@@ -9,7 +9,7 @@ import {
   TRACE_MAX,
   traceLogFactId,
 } from "../engine/traceSystem";
-import { CRACK_DURATION_MS, tryCrack, tryDecode } from "../engine/transformRules";
+import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
 import { LEVELS } from "../levels";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
 
@@ -82,6 +82,7 @@ interface GameState {
   checkTrace: () => void;
   deleteLogs: () => void;
   compareFiles: (compareId: string) => void;
+  pivotTo: (pivotId: string) => void;
   tickTrace: () => void;
   attemptQuickLogin: () => void;
   attemptLogin: () => void;
@@ -99,6 +100,7 @@ interface GameState {
   toggleClueSelection: (id: string) => void;
   decodeClue: () => void;
   startCrackHash: () => void;
+  checkLeakDatabase: () => void;
   clearTransformFeedback: () => void;
 }
 
@@ -254,6 +256,29 @@ export const useGameStore = create<GameState>((set, get) => ({
       discovered: compare.grantsFact
         ? { ...state.discovered, [compare.grantsFact]: true }
         : state.discovered,
+    }));
+  },
+
+  pivotTo: (pivotId) => {
+    const { level, currentNodeId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const pivot = node?.pivots?.find((p) => p.id === pivotId);
+    if (!node || !pivot) return;
+    const target = level.nodes.find((n) => n.id === pivot.targetNodeId);
+    if (!target) return;
+
+    const lines: TerminalLine[] = [
+      makeLine(`$ pivot --target ${target.ip}`, "input"),
+      makeLine(`Connection re-routed to ${target.ip}.`, "success"),
+    ];
+
+    set((state) => ({
+      currentNodeId: target.id,
+      currentPath: [],
+      openFilePath: null,
+      searchOpen: false,
+      searchKeyword: null,
+      terminalLines: [...state.terminalLines, ...lines],
     }));
   },
 
@@ -444,6 +469,31 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({
         selectedClueId: null,
         transformFeedback: { kind: "invalid", message: "Doesn't decode to anything useful." },
+      });
+    }
+  },
+
+  checkLeakDatabase: () => {
+    const { selectedClueId, clues } = get();
+    const clue = clues.find((c) => c.id === selectedClueId);
+    if (!clue) return;
+    const result = tryLeakCheck(clue);
+    if (result) {
+      const added = addClue(clues, {
+        type: result.type,
+        value: result.value,
+        label: result.label,
+        source: "leak database",
+      });
+      set({
+        clues: added.clues,
+        selectedClueId: null,
+        transformFeedback: { kind: "success", message: `${result.value} — ${result.label}` },
+      });
+    } else {
+      set({
+        selectedClueId: null,
+        transformFeedback: { kind: "invalid", message: "No match in the leak database." },
       });
     }
   },

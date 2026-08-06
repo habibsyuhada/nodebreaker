@@ -22,6 +22,15 @@ const CRACK_RECIPES: Record<string, CombineResult> = {
   },
 };
 
+/** Keyed by the exact email clue value — simulates checking a public breach-dump database. */
+const LEAK_RECIPES: Record<string, CombineResult> = {
+  "jwilson@riversidehealth.org": {
+    type: "password",
+    value: "Sunshine88!",
+    label: "Found in a public breach dump — this account reuses it",
+  },
+};
+
 /** Single-input transform: decode an `encoded` clue. Returns null if it doesn't decode to anything useful. */
 export function tryDecode(clue: Clue): CombineResult | null {
   if (clue.type !== "encoded") return null;
@@ -32,4 +41,10 @@ export function tryDecode(clue: Clue): CombineResult | null {
 export function tryCrack(clue: Clue): CombineResult | null {
   if (clue.type !== "hash") return null;
   return CRACK_RECIPES[clue.value] ?? null;
+}
+
+/** Single-input transform: check an `email` clue against a leaked-credential database. */
+export function tryLeakCheck(clue: Clue): CombineResult | null {
+  if (clue.type !== "email") return null;
+  return LEAK_RECIPES[clue.value] ?? null;
 }

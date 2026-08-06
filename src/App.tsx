@@ -116,6 +116,7 @@ function useContextActions(): ContextAction[] {
   const checkTrace = useGameStore((s) => s.checkTrace);
   const deleteLogs = useGameStore((s) => s.deleteLogs);
   const compareFiles = useGameStore((s) => s.compareFiles);
+  const pivotTo = useGameStore((s) => s.pivotTo);
   const closeFile = useGameStore((s) => s.closeFile);
   const openSearch = useGameStore((s) => s.openSearch);
   const closeSearch = useGameStore((s) => s.closeSearch);
@@ -127,6 +128,7 @@ function useContextActions(): ContextAction[] {
   const clearSlots = useGameStore((s) => s.clearSlots);
   const decodeClue = useGameStore((s) => s.decodeClue);
   const startCrackHash = useGameStore((s) => s.startCrackHash);
+  const checkLeakDatabase = useGameStore((s) => s.checkLeakDatabase);
   const node = useCurrentNode();
   const levelComplete = useLevelComplete();
 
@@ -148,6 +150,12 @@ function useContextActions(): ContextAction[] {
       const done = compare.grantsFact ? discovered[compare.grantsFact] : false;
       if (ready && !done) {
         actions.push({ id: `compare-${compare.id}`, label: compare.label, onClick: () => compareFiles(compare.id) });
+      }
+    }
+    for (const pivot of node.pivots ?? []) {
+      const ready = pivot.requiredFacts.every((f) => discovered[f]);
+      if (ready) {
+        actions.push({ id: `pivot-${pivot.id}`, label: pivot.label, onClick: () => pivotTo(pivot.id) });
       }
     }
     if (node.quickLogin) {
@@ -208,6 +216,9 @@ function useContextActions(): ContextAction[] {
         onClick: startCrackHash,
         disabled: crackingClueId !== null,
       });
+    }
+    if (selectedClue?.type === "email") {
+      actions.push({ id: "leak-check", label: "Check Leak DB", onClick: checkLeakDatabase });
     }
     if (clues.length >= 2) {
       actions.push({ id: "open-workbench", label: "Workbench", onClick: () => setWorkbenchOpen(true) });
