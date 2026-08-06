@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { addClue } from "../engine/clueSystem";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { addClue, resumeClueCounter } from "../engine/clueSystem";
 import type { Clue, ClueInput } from "../engine/clueSystem";
 import { tryCombine } from "../engine/combineRules";
 import { findEntry, tryLogin } from "../engine/nodeState";
@@ -123,14 +124,37 @@ interface GameState {
   startCrackHash: () => void;
   checkLeakDatabase: () => void;
   clearTransformFeedback: () => void;
+
+  /** Wipes the localStorage save and returns to a fresh Level 1. */
+  resetProgress: () => void;
 }
 
 function briefingLines(level: LevelDef): TerminalLine[] {
   return level.briefing.map((text) => makeLine(text, "system"));
 }
 
-export const useGameStore = create<GameState>((set, get) => ({
-  activePanel: "terminal",
+/**
+ * What survives a reload: which level/node you're on and what you've earned there. Deliberately
+ * excludes transient navigation/UI state (active panel, file/search/workbench state, terminal
+ * scrollback and its reveal animation, in-flight selection/crack/transform feedback) — those
+ * reset fresh on load rather than trying to resume mid-interaction.
+ */
+interface PersistedState {
+  levelIndex: number;
+  currentNodeId: string;
+  discovered: Record<string, true>;
+  accessGrantedNodes: Record<string, true>;
+  traceLevel: number;
+  burned: boolean;
+  clues: Clue[];
+}
+
+const SAVE_KEY = "nodebreaker-save";
+
+export const useGameStore = create<GameState>()(
+  persist(
+    (set, get) => ({
+      activePanel: "terminal",
   setActivePanel: (panel) => set({ activePanel: panel }),
 
   level: LEVELS[0],
@@ -671,7 +695,47 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   clearTransformFeedback: () => set({ transformFeedback: null }),
-}));
+
+  resetProgress: () => {
+    useGameStore.persist.clearStorage();
+    get().loadLevel(0);
+  },
+}),
+{
+  name: SAVE_KEY,
+  storage: createJSONStorage(() => localStorage),
+  version: 1,
+  partialize: (state): PersistedState => ({
+    levelIndex: state.level.index,
+    currentNodeId: state.currentNodeId,
+    discovered: state.discovered,
+    accessGrantedNodes: state.accessGrantedNodes,
+    traceLevel: state.traceLevel,
+    burned: state.burned,
+    clues: state.clues,
+  }),
+  merge: (persisted, current) => {
+    const p = persisted as Partial<PersistedState> | undefined;
+    if (!p || p.levelIndex === undefined) return current as GameState;
+    const level = LEVELS[p.levelIndex] ?? LEVELS[0];
+    const clues = p.clues ?? [];
+    resumeClueCounter(clues);
+    return {
+      ...(current as GameState),
+      level,
+      currentNodeId: p.currentNodeId ?? level.entryNodeId,
+      discovered: p.discovered ?? {},
+      accessGrantedNodes: p.accessGrantedNodes ?? {},
+      traceLevel: p.traceLevel ?? 0,
+      burned: p.burned ?? false,
+      clues,
+      terminalLines: briefingLines(level),
+      terminalRevealCount: 0,
+    };
+  },
+},
+  ),
+);
 
 export function useCurrentNode(): LevelNodeDef {
   return useGameStore((s) => {

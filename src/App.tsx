@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BASE_PALETTE, LOCK_SPRITE } from "./art/sprites";
 import { Sprite } from "./art/spriteEngine";
 import { playAmbientPulse, playGlitch } from "./audio/synth";
@@ -110,13 +110,40 @@ function BurnedScreen() {
   );
 }
 
-function SettingsPlaceholder() {
+function SettingsPanel() {
+  const resetProgress = useGameStore((s) => s.resetProgress);
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (!confirming) return;
+    const t = window.setTimeout(() => setConfirming(false), 3000);
+    return () => window.clearTimeout(t);
+  }, [confirming]);
+
   return (
     <div className="flex h-full flex-col gap-4 p-4">
       <h1 className="text-sm font-semibold tracking-widest text-text-bright">SETTINGS</h1>
       <p className="text-xs text-text-dim">
-        Reduced motion is auto-detected from your system. Sound and progress reset land later.
+        Reduced motion is auto-detected from your system, and sound respects it too.
       </p>
+      <p className="text-xs text-text-dim">
+        Your level, clues, and trace save automatically to this device — closing the tab won't
+        lose your place.
+      </p>
+      <button
+        type="button"
+        onClick={() => {
+          if (confirming) {
+            resetProgress();
+            setConfirming(false);
+          } else {
+            setConfirming(true);
+          }
+        }}
+        className="min-h-[44px] rounded border border-warn/40 px-4 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"
+      >
+        {confirming ? "Tap again to confirm — this can't be undone" : "Reset Progress"}
+      </button>
     </div>
   );
 }
@@ -309,7 +336,7 @@ function ActivePanel() {
     case "clues":
       return workbenchOpen ? <Workbench /> : <ClueInventory />;
     case "settings":
-      return <SettingsPlaceholder />;
+      return <SettingsPanel />;
   }
 }
 

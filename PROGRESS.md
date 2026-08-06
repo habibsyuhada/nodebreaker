@@ -49,9 +49,16 @@ src/
                   ClueInventory.tsx, Workbench.tsx
   components/     StatusBar.tsx, ActionBar.tsx, TabBar.tsx, HoldableText.tsx
                   (tap-hold-to-save-clue span, used by Terminal + FileBrowser)
-  store/          gameStore.ts — single Zustand store, all game state
+  store/          gameStore.ts — single Zustand store, all game state,
+                  wrapped in zustand's persist middleware (localStorage)
 App.tsx           panel switcher, contextual ActionBar logic, breach/burned
                   screens, TraceTicker (passive trace interval)
+public/icons/     PWA icon PNGs (192/512 any + maskable, apple-touch-icon),
+                  rasterized from the existing LOCK_SPRITE — not hand-drawn
+                  separately, see stage 10 notes
+vite.config.ts    VitePWA plugin: manifest, service worker (generateSW),
+                  runtime-caches Google Fonts so offline-after-first-load
+                  covers fonts too, not just the app shell
 ```
 
 ### Core mechanics already implemented
@@ -144,6 +151,67 @@ App.tsx           panel switcher, contextual ActionBar logic, breach/burned
    exactly once across the four nodes. completionRequires just
    `["exported-core-data"]` since Export Data's own gating already enforces
    the full chain.
+
+### Stage 10 mechanics added — the build is now complete (all 10 stages)
+
+- **PWA**: `vite-plugin-pwa` (devDependency) generates `manifest.webmanifest`
+  and a Workbox service worker (`generateSW` mode) at build time —
+  `npm run build` only, not `npm run dev` (no `devOptions.enabled`, so the
+  dev server never runs a service worker; test PWA/offline behavior against
+  `npm run build && npm run preview`, not `npm run dev`). Icons
+  (`public/icons/icon-{192,512}.png`, `icon-maskable-{192,512}.png`,
+  `apple-touch-icon.png`) are rasterized from the existing `LOCK_SPRITE` +
+  `BASE_PALETTE` (not hand-drawn separately) via a one-off Playwright canvas
+  screenshot script — reuses the game's actual pixel-art identity instead of
+  the generic scaffold `favicon.svg`, and needed no new runtime dependency
+  since the rasterization happens once, at authoring time, not per-build.
+  `index.html` gets the standard iOS PWA meta tags
+  (`apple-mobile-web-app-capable`, `apple-touch-icon`, etc.) alongside the
+  plugin's auto-injected `<link rel="manifest">`.
+- **Offline after first load**: Workbox precaches the app shell
+  automatically. The one external-origin request the game makes — Google
+  Fonts — needed an explicit `runtimeCaching` entry (`CacheFirst` for both
+  `fonts.googleapis.com` and `fonts.gstatic.com`) so a page that's loaded
+  once stays fully styled offline too, not just functional. Verified with a
+  real `context.setOffline(true)` Playwright test against the built+
+  previewed app: load once online (service worker installs, activates,
+  takes control on the *second* load — SW control never applies to the very
+  first navigation that registers it, a common gotcha), then reload fully
+  offline — app shell, briefing text, and ActionBar all render with zero
+  page errors.
+- **localStorage persistence** (`gameStore.ts`, zustand's `persist`
+  middleware, key `"nodebreaker-save"`): persists exactly what "level
+  progress" means — `level.index` (as an index, not the object itself, so
+  rehydration always resolves against the current code's `LEVELS` array
+  rather than trusting stale persisted level data), `currentNodeId`,
+  `discovered`, `accessGrantedNodes`, `traceLevel`, `burned`, `clues`.
+  Deliberately does **not** persist transient UI/navigation state
+  (`activePanel`, file/search/workbench state, terminal scrollback +
+  `terminalRevealCount`, in-flight selection/crack/transform feedback) —
+  exactly the split PROGRESS.md's own stage-6-era note anticipated ("want
+  level progress to persist, but maybe not mid-level Terminal scrollback").
+  A custom `merge` resolves the persisted index back into a real `LevelDef`
+  and regenerates fresh `briefingLines` on load, so reopening the game reads
+  as "reconnecting" rather than resuming a frozen terminal mid-animation.
+  Verified end-to-end: reload mid-Level-3 restores clues/access/trace
+  exactly, terminal comes back fresh, and post-reload actions (Delete Logs)
+  still correctly complete the level.
+- **Clue id collision fix**: `clueCounter` in `clueSystem.ts` is a
+  module-level counter reset to 0 on every page load, but restored clues
+  keep their old `"clue-N"` ids from a previous session — without
+  correction, the very next clue saved after a reload could mint a
+  duplicate id, silently breaking React's `key`-based reconciliation in
+  `ClueInventory`/`Workbench`. Fixed with an exported `resumeClueCounter`
+  that fast-forwards the counter past the highest id in the restored array,
+  called once inside the persist `merge` function.
+- **Reset Progress** (`resetProgress` action + `SettingsPanel`, replacing
+  the old placeholder): clears the localStorage save
+  (`useGameStore.persist.clearStorage()`) and calls `loadLevel(0)`. The
+  button uses a lightweight tap-to-arm/tap-again-to-confirm pattern (local
+  component state, 3s auto-revert) rather than a modal — the codebase has
+  no confirm-dialog primitive anywhere else, and this is the first
+  genuinely irreversible action in the game (Retry/Replay only affect the
+  current level, not the whole save).
 
 ### Stage 9 mechanics added
 
@@ -322,27 +390,27 @@ App.tsx           panel switcher, contextual ActionBar logic, breach/burned
   is explained by a discoverable log-format reference file instead of a
   punishing trap.
 
-## What's next (stage 10, not started)
+## What's next
 
-Follow the original 10-stage build order from the brief (bottom of this
-file). We are done through **stage 9** — all 8 levels are built and
-playable end-to-end. Next up:
+All 10 stages from the original build order are done — the game is
+feature-complete: all 8 levels playable end-to-end, PWA installable, saves
+and resumes across reloads, works offline after the first visit. Nothing is
+blocking; anything from here is optional polish, not a gap. Reasonable next
+moves if resuming work on this project:
 
-**Stage 10 — PWA + persistence**
-- `manifest.json`, service worker (offline-first after first load),
-  installable to home screen.
-- Persist game state to `localStorage` (currently everything resets on
-  reload — no persistence exists yet). Needs a save/load layer in
-  `gameStore.ts`, probably zustand's `persist` middleware, with care around
-  what should/shouldn't survive a reload (e.g. probably want level progress
-  to persist, but maybe not mid-level Terminal scrollback).
+- Manual real-device testing (an actual phone, not just a 400×800
+  Playwright viewport) — installability prompt, home-screen icon rendering,
+  touch/haptic feel, actual airplane-mode offline check.
+- More levels beyond the original 8, if desired — the engine's "types →
+  store action → ContextAction" pattern (see below) scales to new mechanics
+  without rework, and Level 8's node count could grow from 4 toward the
+  brief's "4-6" ceiling if it ever feels thin in playtesting.
+- Audio/visual polish is intentionally light-touch (a few noise-burst
+  sounds, one CSS glitch effect) rather than exhaustive — expand only if it
+  earns its complexity; the game is fully playable and legible without more.
 
 ## Known gaps / things to double check when resuming
 
-- No `localStorage` persistence at all yet (stage 10) — closing the tab
-  loses all progress.
-- No PWA manifest/service worker yet (stage 10) — not installable, not
-  offline-capable yet despite the brief requiring it.
 - `combineRules.ts` still has exactly one recipe, now reused twice
   (Level 2 and Level 8's Core node — same username+pattern→password recipe,
   different clue values, no engine change needed since it matches by type
