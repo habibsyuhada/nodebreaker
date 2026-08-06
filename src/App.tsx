@@ -344,7 +344,15 @@ function App() {
   const actions = useContextActions();
 
   return (
-    <div className="mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden bg-bg text-text">
+    <div
+      className="mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden bg-bg text-text"
+      style={{
+        paddingTop: "var(--safe-area-inset-top, env(safe-area-inset-top, 0px))",
+        paddingBottom: "var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))",
+        paddingLeft: "var(--safe-area-inset-left, env(safe-area-inset-left, 0px))",
+        paddingRight: "var(--safe-area-inset-right, env(safe-area-inset-right, 0px))",
+      }}
+    >
       <div className="relative flex min-h-0 flex-1 flex-col">
         <TraceTicker />
         <StatusBar />
