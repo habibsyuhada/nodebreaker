@@ -43,9 +43,11 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    # No `environment: github-pages` block here on purpose: GitHub auto-creates that environment
+    # with a deployment-branch-policy limited to the repo's default branch, so a job scoped to it
+    # gets rejected outright (no runner assigned, fails in ~2s) on any other branch — including
+    # this one. deploy-pages only needs id-token/pages permissions (already granted above) to
+    # authenticate and publish; the environment block is purely a GitHub UI/approval affordance.
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
