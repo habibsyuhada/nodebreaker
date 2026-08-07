@@ -36,9 +36,10 @@ src/
   audio/          synth.ts — procedural Web Audio: beeps (clue/combine
                   feedback) and noise-buffer bursts (typing tick, glitch,
                   ambient pulse). No audio files.
-  engine/         nodeState.ts (filesystem nav + login check + keyword search),
-                  clueSystem.ts (clue types, [[type:value|label]] markup parser,
-                  dedup), combineRules.ts (Workbench recipes), transformRules.ts
+  engine/         nodeState.ts (filesystem nav + login check + keyword search
+                  + shortNodeLabel), clueSystem.ts (clue types incl. node
+                  origin, [[type:value|label]] markup parser, dedup),
+                  combineRules.ts (Workbench recipes), transformRules.ts
                   (single-input decode/crack/leak-check recipes), traceSystem.ts
                   (trace constants + ambient log thresholds)
   levels/         types.ts (LevelDef/LevelNodeDef/FileEntry/FileCompareDef/
@@ -47,12 +48,23 @@ src/
                   index.ts (LEVELS array — all 8 levels registered)
   panels/         Terminal.tsx, FileBrowser.tsx (+ built-in search view),
                   ClueInventory.tsx, Workbench.tsx
-  components/     StatusBar.tsx, ActionBar.tsx, TabBar.tsx, HoldableText.tsx
-                  (tap-hold-to-save-clue span, used by Terminal + FileBrowser)
+  components/     StatusBar.tsx (also the Network Map's trigger on multi-node
+                  levels), ActionBar.tsx, TabBar.tsx, HoldableText.tsx
+                  (tap-hold-to-save-clue span, used by Terminal + FileBrowser),
+                  BriefingDialog.tsx (per-level mission overlay, gates trace),
+                  NotificationToast.tsx (self-dismissing toast stack for clue
+                  saves + newly-unlocked actions), NetworkMap.tsx (pivot
+                  navigation overlay for multi-node levels), NetworkMapHint.tsx
+                  (one-time discovery nudge), LoginPicker.tsx (explicit
+                  username/password clue picker, replaces auto-guess login)
+  screens/        MainMenu.tsx, LevelSelect.tsx — top-level screens shown
+                  before the game view (App.tsx's `screen` store field)
   store/          gameStore.ts — single Zustand store, all game state,
                   wrapped in zustand's persist middleware (localStorage)
-App.tsx           panel switcher, contextual ActionBar logic, breach/burned
-                  screens, TraceTicker (passive trace interval)
+App.tsx           screen switcher (menu/levels/game), panel switcher,
+                  contextual ActionBar logic, breach/burned screens,
+                  TraceTicker (passive trace interval), ActionNotifier
+                  (diffs notable actions across panels for the toast)
 public/icons/     PWA icon PNGs (192/512 any + maskable, apple-touch-icon),
                   rasterized from the existing LOCK_SPRITE — not hand-drawn
                   separately, see stage 10 notes
@@ -389,6 +401,202 @@ vite.config.ts    VitePWA plugin: manifest, service worker (generateSW),
   keeps the mechanic data-driven and low-complexity; the in-fiction "why"
   is explained by a discoverable log-format reference file instead of a
   punishing trap.
+
+### Stage 11 mechanics added — mobile playtest feedback
+
+- **Tap-hold-to-save no longer opens the OS text-selection popup**: on real
+  Android/iOS, long-pressing a `[[type:value|label]]` span inside a readable
+  file body (rendered under FileBrowser's `.selectable` `<pre>`, which sets
+  `user-select: text` so plain prose stays copyable) triggered the native
+  Copy/Select All/Share callout instead of — or racing — the custom
+  550ms-hold clue-save gesture. Fixed with a new `.holdable` CSS class
+  (`src/index.css`) that pins `user-select: none`, `touch-action: none`, and
+  `-webkit-touch-callout: none` on the span itself, overriding the
+  `.selectable` ancestor; also added `onContextMenu={(e) =>
+  e.preventDefault()}` as a cross-browser belt-and-braces. Applied to both
+  `HoldSpan` (`HoldableText.tsx`) and `FileBrowser.tsx`'s `EntryRow` (which
+  already had `touch-none select-none` via Tailwind but not the
+  iOS-specific `-webkit-touch-callout` override). Verified with a Playwright
+  touch-viewport test: after a synthetic long-press, `window.getSelection()`
+  stays empty and the clue still saves.
+- **Per-level mission briefing dialog gates the trace clock**
+  (`briefingActive` in `gameStore.ts`, persisted; `dismissBriefing` action;
+  `BriefingDialog.tsx`): previously `TraceTicker` started ticking the moment
+  a level's node mounted, so a trace-enabled level's clock was already
+  running before the player had read the briefing or looked around.
+  `loadLevel` now sets `briefingActive: true`; a full-screen opaque overlay
+  (level title, target IP/org, briefing lines, a "Start Hack" button) covers
+  the whole game screen — StatusBar/panel/ActionBar/TabBar included — until
+  dismissed, blocking both interaction and the trace interval
+  (`TraceTicker`'s effect now also checks `!briefingActive`). Verified: with
+  a trace-enabled level loaded and the briefing left up past a full 5s tick
+  interval, trace stays at 0%; tapping Start Hack and waiting the same
+  interval moves it to 2% as expected.
+- **Main Menu + Level Select screens** (`src/screens/MainMenu.tsx`,
+  `LevelSelect.tsx`; new `screen: "menu" | "levels" | "game"` store field,
+  deliberately **not** persisted): the app now always boots to a Main Menu
+  regardless of saved progress, instead of dropping straight into the
+  Terminal — matches the ask that opening the game shouldn't auto-resume a
+  session. Main Menu shows "Continue" (only when there's actual save
+  progress — clues, discovered facts, trace, node access, or a completed
+  level) plus "Select Level". Level Select lists all 8 levels with
+  lock/DONE state driven by a new persisted `completedLevels: Record<string,
+  true>` map; a level unlocks once the previous level's id is in
+  `completedLevels`, index 0 is always unlocked. Completion is recorded by
+  `TraceTicker` (already watching `useLevelComplete()` for the hot-trace
+  alert) via a second one-shot-per-level ref, calling the new
+  `markLevelComplete` action. Settings gained a "Back to Main Menu" button
+  (pure navigation — doesn't touch save state, so Continue still resumes
+  exactly where you left off). Verified end-to-end with Playwright: seeding
+  `localStorage` with levels 1-2 marked complete unlocks level 3 in Level
+  Select, and the app still boots to the menu first even with a save
+  present.
+
+### Stage 12 mechanics added — second round of mobile playtest feedback
+
+- **Text is no longer selectable anywhere**: stage 11's `.holdable` fix
+  scoped `user-select: none` to just the clue spans, leaving surrounding
+  prose selectable via `.selectable` on the containing `<pre>`/`<p>`.
+  Playtesting showed the player didn't want selection at all (only
+  tap-hold), so `.selectable` is gone entirely (`FileBrowser.tsx`'s file
+  body, `ClueInventory.tsx`'s clue-value line) and `body` in `index.css`
+  now also sets `-webkit-touch-callout: none` globally — safe globally
+  (unlike `touch-action: none`, which stays scoped to `.holdable` since
+  going global there would break scrolling everywhere).
+- **File reads no longer echo into the Terminal**: `openFile` in
+  `gameStore.ts` used to push a `$ cat <file>` line plus the
+  content/permission-denied/binary-placeholder lines into `terminalLines`,
+  duplicating what the Files panel's own `openFilePath` view already
+  renders. Removed the terminal-line-pushing half of the action entirely —
+  `discovered`/`grantsFact` bookkeeping is untouched, so no game logic
+  changed, just where the content is shown (Files panel only, per the ask).
+- **Exit button on the Main Menu** (`MainMenu.tsx`): the web platform has no
+  real "quit" — `window.close()` only works on a tab the page itself
+  opened, so on an ordinary tab it silently no-ops. Exit attempts it anyway
+  (covers PWA/webview contexts where it does work) but always lands on a
+  themed "CONNECTION TERMINATED" screen with a "Back In" button, so the
+  player is never stuck looking at a dead screen on an ordinary browser tab.
+- **Toast notifications for clue saves and newly-unlocked actions**
+  (`Notification`/`notifications`/`pushNotification`/`dismissNotification`
+  in `gameStore.ts`, `NotificationToast.tsx`): playtest feedback was that
+  new ActionBar tools felt like they came out of nowhere ("ngawang") —
+  reasonable, since this is effectively a self-teaching tutorial with no
+  popups by design (see the onboarding rule at the bottom of this file).
+  `saveClue` now pushes `"Clue saved: <label>"` on every successful save
+  (skips duplicates, same as its existing haptic/sound feedback). New
+  ActionBar actions are trickier: `useContextActions()` returns a different
+  action list per `activePanel`, so a diff against just the active panel's
+  list would miss e.g. Login appearing on the Terminal panel while the
+  player is reading a file in Files. Fixed by restructuring
+  `useContextActions()` to always compute all three panels' action lists
+  every render (previously each panel branch returned early) and expose
+  `{ actions, notableActions }` — `actions` is still the active-panel-only
+  list ActionBar renders, `notableActions` is every `notable`-flagged
+  action across all three panels, independent of which one is active.
+  `notable: true` is opt-in per action (login, delete/falsify logs,
+  compare/pivot/escalate/backdoor, open-workbench) — routine UI chrome
+  (Close/Up/Search/close-workbench/per-selection Decode-Crack-Leak-check)
+  deliberately isn't flagged, since those appear and disappear constantly
+  from ordinary navigation and would spam the toast queue if diffed the
+  same way. First playtest of the diff logic caught exactly this: the
+  Files panel's contextual "Close" button got announced as "New action
+  unlocked: Close" the moment a file was opened, which is what led to the
+  `notable`-flag design instead of diffing the raw action list.
+  `ActionNotifier` (new component in `App.tsx`, mounted alongside
+  `TraceTicker`) does the actual diffing — baseline resets silently
+  (no toast) on node/level change or briefing dismissal, so a level's
+  starting toolkit never fires as "new". Toast stack renders at `top-14`
+  (clears the `h-11` StatusBar) via `NotificationToast.tsx`, each entry
+  self-dismissing after 3.2s or on tap.
+
+### Stage 13 mechanics added — multi-node clarity (Level 8 pivot navigation)
+
+- **Clues are tagged with their origin node** (`Clue.nodeId`/`nodeLabel` in
+  `clueSystem.ts`; `addClue` now takes a `{ id, label }` node param instead
+  of inferring nothing). `gameStore.ts` gained a `nodeTag(level,
+  currentNodeId)` helper and every one of the 5 clue-creation call sites
+  (`saveClue`, `combineSlots`, `decodeClue`, `checkLeakDatabase`,
+  `startCrackHash`) now stamps the clue with whichever node was current at
+  creation time — `startCrackHash`'s is in a `window.setTimeout` callback,
+  so it re-reads `get()` fresh at completion rather than capturing node
+  context at crack-start (matters if the player pivots away mid-crack).
+  `ClueInventory.tsx` groups by `nodeId` with a short-label header
+  (`shortNodeLabel`, new export in `nodeState.ts` — takes the descriptor
+  after a node's `orgName`'s last " — ", since every multi-node level
+  already follows a "Company — Descriptor" convention, so no new per-node
+  data field was needed) whenever a level has shown the player clues from
+  more than one node; single-node levels (7 of 8) stay exactly the flat
+  list they were, confirmed via Playwright regression.
+- **Network Map overlay** (`NetworkMap.tsx`, triggered by tapping
+  StatusBar's NODE indicator — the indicator itself only becomes a button,
+  and only gains the `· <short label>` suffix, when `level.nodes.length >
+  1`, so single-node levels' StatusBar is untouched): lists every node
+  the player has visited this level (`visitedNodeIds: Record<string,
+  true>` — new persisted store field, seeded to the entry node on
+  `loadLevel`, extended in `pivotTo`) plus any node reachable via a *ready*
+  pivot from the *current* node. Tapping a reachable row calls the same
+  `pivotTo()` the Terminal ActionBar's "Pivot to `<ip>`" button already
+  exposes — deliberately not a new navigation capability, since letting the
+  map jump to any visited node regardless of the current node's actual
+  pivot graph would trivialize the star-topology puzzle (Level 8's HR and
+  Finance nodes only connect back through Edge, not directly to each
+  other). A row's chip reads HERE / PIVOT / VISITED — VISITED rows are
+  intentionally inert, which is the tell that a node exists but isn't
+  reachable without routing back through Edge first. Verified end-to-end:
+  from Finance, the map correctly shows HR as VISITED (dimmed,
+  non-interactive) rather than PIVOT, since Finance has no direct pivot to
+  HR in `level08.ts`.
+
+### Stage 14 mechanics added — Network Map discoverability + explicit Login
+
+- **Network Map button now reads as a button, plus a one-time discovery
+  hint**: StatusBar's NODE indicator gained a visible border, background,
+  and a "▾" affordance glyph (`StatusBar.tsx`) instead of looking like
+  plain dim text. Fixing this surfaced a real layout bug: a long org name
+  (Level 8 Edge's "Employee Portal / VPN Gateway") wrapped inside the
+  button and pushed the TRACE indicator out of the fixed `h-11` header,
+  breaking the row — fixed with an explicit `min-w-0`/`truncate` chain
+  (short label span shrinks/ellipsizes, the `NODE: <ip>` prefix and TRACE
+  side both stay `shrink-0 whitespace-nowrap` so they never wrap or lose
+  space to the truncating span). Also added `NetworkMapHint.tsx`: a
+  one-time dismissible callout (new persisted `networkMapHintShown` flag)
+  that appears automatically the first time a level's `visitedNodeIds`
+  count shows the map is actually useful (i.e., right after a player's
+  first pivot), pointing at the now-obviously-tappable NODE bar.
+  `setNetworkMapOpen` also marks the flag shown on open, so a player who
+  finds the button on their own before ever pivoting never sees the
+  redundant hint. This is a deliberate one-off exception to this project's
+  own "no popup tutorials" rule (see the onboarding note near the bottom
+  of this file) — added on explicit request after a real playtester didn't
+  realize the bar was tappable, which the rule's "introduce every new verb
+  through a situation where it's the only way out" premise doesn't cover
+  for a pure navigation/orientation aid like this one.
+- **Login is now an explicit username/password clue picker, not an
+  auto-guess** (`LoginPicker.tsx`; `gameStore.ts`'s `loginPickerOpen` /
+  `loginUsernameClueId` / `loginPasswordClueId` / `selectLoginUsername` /
+  `selectLoginPassword` / `confirmLogin`, replacing the old `attemptLogin`
+  entirely): the previous generic-login action silently looped through
+  every username × password clue combo in the level-wide Clue Inventory
+  and narrated whichever pair happened to match first. That's invisible
+  and confusing on a level like Level 8, where by the time a player reaches
+  HR they may already be holding the Edge VPN credential too — tapping
+  Login could visibly attempt (and correctly fail with) the VPN pair when
+  the player's mental model was "log into HR," with no way to tell the game
+  to try their actual HR credential instead. The picker surfaces every
+  username/password clue as a tappable row (tagged with its short origin-
+  node label via `shortNodeLabel`, but only when the picker's candidates
+  actually span more than one node — single-account levels don't show the
+  label at all) and only attempts the pair the player explicitly selects.
+  `setLoginPickerOpen(true)` auto-preselects when there's exactly one
+  username and one password clue, so every level except 8 stays a
+  two-tap confirm instead of forcing a redundant pick from a list of one.
+  Verified end-to-end: on Level 8's HR node with both the VPN and HR
+  credentials in inventory, explicitly picking the VPN pair correctly
+  fails (`ACCESS DENIED`, no `accessGrantedNodes` change) and picking the
+  HR pair correctly succeeds — confirming the reported bug was a UX/
+  legibility problem (silent wrong-looking auto-attempt), not a login-logic
+  bug (the old matching logic was already node-scoped and correct;
+  players just had no way to see or choose what it was trying).
 
 ## What's next
 

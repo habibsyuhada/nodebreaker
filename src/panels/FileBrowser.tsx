@@ -135,7 +135,8 @@ function EntryRow({ entry, onOpen, onInspect }: EntryRowProps) {
       onPointerUp={end}
       onPointerLeave={cancel}
       onPointerCancel={cancel}
-      className="flex min-h-[44px] w-full touch-none select-none items-center gap-3 border-b border-border px-3 text-left text-xs text-text active:bg-panel-alt"
+      onContextMenu={(e) => e.preventDefault()}
+      className="holdable flex min-h-[44px] w-full items-center gap-3 border-b border-border px-3 text-left text-xs text-text active:bg-panel-alt"
     >
       {entry.kind === "dir" ? <IconFiles size={18} /> : <IconDoc size={18} />}
       <span className={entry.kind === "dir" ? "text-text-bright" : ""}>{entry.name}</span>
@@ -191,7 +192,7 @@ export function FileBrowser() {
           ) : entry?.readable === false ? (
             <p className="text-xs text-warn">[binary data — not human-readable]</p>
           ) : (
-            <pre className="selectable whitespace-pre-wrap font-mono text-xs text-text">
+            <pre className="whitespace-pre-wrap font-mono text-xs text-text">
               <HoldableText content={entry?.content ?? ""} source={filename} />
             </pre>
           )}

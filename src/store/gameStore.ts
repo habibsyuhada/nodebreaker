@@ -16,6 +16,8 @@ import type { LevelDef, LevelNodeDef } from "../levels/types";
 
 export type PanelId = "terminal" | "files" | "clues" | "settings";
 
+export type ScreenId = "menu" | "levels" | "game";
+
 export type TerminalTone = "input" | "output" | "success" | "warn" | "system";
 
 export interface TerminalLine {
@@ -29,11 +31,19 @@ export interface CombineFeedback {
   message: string;
 }
 
+export interface Notification {
+  id: string;
+  text: string;
+}
+
 let lineCounter = 0;
 function makeLine(text: string, tone: TerminalTone): TerminalLine {
   lineCounter += 1;
   return { id: `line-${lineCounter}`, text, tone };
 }
+
+const NOTIFICATION_DURATION_MS = 3200;
+let notifCounter = 0;
 
 function computeLevelComplete(
   level: LevelDef,
@@ -45,12 +55,56 @@ function computeLevelComplete(
   return required.every((f) => discovered[f]);
 }
 
+/** Node context to stamp onto a newly-created clue — whichever node was current when it was made. */
+function nodeTag(level: LevelDef, currentNodeId: string): { id: string; label: string } {
+  const node = level.nodes.find((n) => n.id === currentNodeId);
+  return { id: currentNodeId, label: node?.orgName ?? currentNodeId };
+}
+
 interface GameState {
+  /** Which top-level screen is showing — always boots to "menu" regardless of saved progress. */
+  screen: ScreenId;
+  setScreen: (screen: ScreenId) => void;
+
+  /** Level ids that have been completed at least once — drives Level Select's lock/checkmark state. */
+  completedLevels: Record<string, true>;
+  markLevelComplete: (levelId: string) => void;
+
+  /**
+   * True from the moment a level (re)loads until the player dismisses its mission-briefing
+   * dialog. While true, TraceTicker doesn't tick and a blocking overlay covers the game screen —
+   * the player decides when the clock starts, not the level load.
+   */
+  briefingActive: boolean;
+  dismissBriefing: () => void;
+
+  /**
+   * Short-lived toast queue — surfaces things easy to miss while looking at a different panel:
+   * a clue getting saved, a new action appearing in the ActionBar. Purely transient (not
+   * persisted); each entry removes itself after NOTIFICATION_DURATION_MS.
+   */
+  notifications: Notification[];
+  pushNotification: (text: string) => void;
+  dismissNotification: (id: string) => void;
+
   activePanel: PanelId;
   setActivePanel: (panel: PanelId) => void;
 
   level: LevelDef;
   currentNodeId: string;
+
+  /** Every node id the player has been on this level (via loadLevel's entry node or pivotTo). Drives the Network Map's node list. */
+  visitedNodeIds: Record<string, true>;
+  /** Whether the Network Map overlay is open — transient UI state, not persisted. */
+  networkMapOpen: boolean;
+  setNetworkMapOpen: (open: boolean) => void;
+  /**
+   * Whether the player has ever opened the Network Map (persisted, account-wide — not per-level).
+   * Gates NetworkMapHint: it appears once, automatically, the first time a level's pivot count
+   * makes the map actually useful, and never again once the player has found it themselves.
+   */
+  networkMapHintShown: boolean;
+  dismissNetworkMapHint: () => void;
 
   currentPath: string[];
   openFilePath: string[] | null;
@@ -107,7 +161,22 @@ interface GameState {
   goQuiet: () => void;
   tickTrace: () => void;
   attemptQuickLogin: () => void;
-  attemptLogin: () => void;
+
+  /**
+   * Generic (non-quickLogin) Login is a deliberate pick, not an auto-guess: on multi-node levels
+   * the Clue Inventory can hold credentials for several different nodes at once, and silently
+   * looping through every username x password combo (the old behavior) meant the terminal could
+   * narrate an attempt with a clue the player didn't consciously choose. The picker's selection
+   * state is transient — not persisted, resets whenever it closes.
+   */
+  loginPickerOpen: boolean;
+  setLoginPickerOpen: (open: boolean) => void;
+  loginUsernameClueId: string | null;
+  loginPasswordClueId: string | null;
+  selectLoginUsername: (id: string) => void;
+  selectLoginPassword: (id: string) => void;
+  confirmLogin: () => void;
+
   loadLevel: (index: number) => void;
   /** Returns true if a new clue was added, false if it was already saved. */
   saveClue: (input: ClueInput) => boolean;
@@ -134,10 +203,13 @@ function briefingLines(level: LevelDef): TerminalLine[] {
 }
 
 /**
- * What survives a reload: which level/node you're on and what you've earned there. Deliberately
- * excludes transient navigation/UI state (active panel, file/search/workbench state, terminal
- * scrollback and its reveal animation, in-flight selection/crack/transform feedback) — those
- * reset fresh on load rather than trying to resume mid-interaction.
+ * What survives a reload: which level/node you're on and what you've earned there, plus which
+ * levels have ever been completed (Level Select's lock/checkmark state) and whether the current
+ * level's mission-briefing dialog has already been dismissed. Deliberately excludes transient
+ * navigation/UI state (which top-level screen is showing, active panel, file/search/workbench
+ * state, terminal scrollback and its reveal animation, in-flight selection/crack/transform
+ * feedback) — those reset fresh on load rather than trying to resume mid-interaction. `screen`
+ * in particular always boots to "menu" on purpose, even with a save present.
  */
 interface PersistedState {
   levelIndex: number;
@@ -147,6 +219,10 @@ interface PersistedState {
   traceLevel: number;
   burned: boolean;
   clues: Clue[];
+  completedLevels: Record<string, true>;
+  briefingActive: boolean;
+  visitedNodeIds: Record<string, true>;
+  networkMapHintShown: boolean;
 }
 
 const SAVE_KEY = "nodebreaker-save";
@@ -154,11 +230,38 @@ const SAVE_KEY = "nodebreaker-save";
 export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
-      activePanel: "terminal",
+      screen: "menu",
+  setScreen: (screen) => set({ screen }),
+
+  completedLevels: {},
+  markLevelComplete: (levelId) =>
+    set((state) => ({ completedLevels: { ...state.completedLevels, [levelId]: true } })),
+
+  briefingActive: true,
+  dismissBriefing: () => set({ briefingActive: false }),
+
+  notifications: [],
+  pushNotification: (text) => {
+    notifCounter += 1;
+    const id = `notif-${notifCounter}`;
+    set((state) => ({ notifications: [...state.notifications, { id, text }] }));
+    window.setTimeout(() => {
+      set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) }));
+    }, NOTIFICATION_DURATION_MS);
+  },
+  dismissNotification: (id) =>
+    set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) })),
+
+  activePanel: "terminal",
   setActivePanel: (panel) => set({ activePanel: panel }),
 
   level: LEVELS[0],
   currentNodeId: LEVELS[0].entryNodeId,
+  visitedNodeIds: { [LEVELS[0].entryNodeId]: true },
+  networkMapOpen: false,
+  setNetworkMapOpen: (open) => set({ networkMapOpen: open, networkMapHintShown: open || get().networkMapHintShown }),
+  networkMapHintShown: false,
+  dismissNetworkMapHint: () => set({ networkMapHintShown: true }),
   currentPath: [],
   openFilePath: null,
   inspectingPath: null,
@@ -213,30 +316,22 @@ export const useGameStore = create<GameState>()(
     const entry = findEntry(node.root, path);
     if (!entry || entry.kind !== "file") return;
 
-    const filename = path[path.length - 1];
-    const lines: TerminalLine[] = [makeLine(`$ cat ${filename}`, "input")];
+    // File content is shown entirely within the Files panel's own view (see FileBrowser.tsx) —
+    // deliberately not echoed into the Terminal too, so a read doesn't leave a duplicate copy in
+    // the scrollback.
     const locked = Boolean(entry.requiresFact && !discovered[entry.requiresFact]);
-    if (locked) {
-      lines.push(makeLine("PERMISSION DENIED — administrator privileges required.", "warn"));
-    } else if (entry.readable === false) {
-      lines.push(makeLine("[binary data — not human-readable]", "warn"));
-    } else {
-      lines.push(...(entry.content ?? "").split("\n").map((l) => makeLine(l, "output")));
-    }
-
     const nextDiscovered =
       !locked && entry.grantsFact && !discovered[entry.grantsFact]
         ? { ...discovered, [entry.grantsFact]: true as const }
         : discovered;
 
-    set((state) => ({
+    set({
       openFilePath: path,
       inspectingPath: null,
       currentPath: path.slice(0, -1),
       searchOpen: false,
-      terminalLines: [...state.terminalLines, ...lines],
       discovered: nextDiscovered,
-    }));
+    });
   },
 
   closeFile: () => set({ openFilePath: null }),
@@ -370,6 +465,8 @@ export const useGameStore = create<GameState>()(
 
     set((state) => ({
       currentNodeId: target.id,
+      visitedNodeIds: { ...state.visitedNodeIds, [target.id]: true },
+      networkMapOpen: false,
       currentPath: [],
       openFilePath: null,
       inspectingPath: null,
@@ -487,27 +584,41 @@ export const useGameStore = create<GameState>()(
     }));
   },
 
-  attemptLogin: () => {
-    const { level, currentNodeId, clues } = get();
-    const node = level.nodes.find((n) => n.id === currentNodeId);
-    if (!node) return;
+  loginPickerOpen: false,
+  setLoginPickerOpen: (open) => {
+    if (!open) {
+      set({ loginPickerOpen: false });
+      return;
+    }
+    // Opening fresh: auto-preselect when there's exactly one of each, so single-credential
+    // levels (everything but Level 8 so far) stay a two-tap confirm instead of forcing a pick
+    // from a list of one.
+    const { clues } = get();
     const usernames = clues.filter((c) => c.type === "username");
     const passwords = clues.filter((c) => c.type === "password");
-    if (usernames.length === 0 || passwords.length === 0) return;
+    set({
+      loginPickerOpen: true,
+      loginUsernameClueId: usernames.length === 1 ? usernames[0].id : null,
+      loginPasswordClueId: passwords.length === 1 ? passwords[0].id : null,
+    });
+  },
+  loginUsernameClueId: null,
+  loginPasswordClueId: null,
+  selectLoginUsername: (id) =>
+    set((state) => ({ loginUsernameClueId: state.loginUsernameClueId === id ? null : id })),
+  selectLoginPassword: (id) =>
+    set((state) => ({ loginPasswordClueId: state.loginPasswordClueId === id ? null : id })),
 
-    let matchedUser: Clue | null = null;
-    for (const u of usernames) {
-      const hasMatch = passwords.some((p) => tryLogin(node, u.value, p.value));
-      if (hasMatch) {
-        matchedUser = u;
-        break;
-      }
-    }
+  confirmLogin: () => {
+    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const usernameClue = clues.find((c) => c.id === loginUsernameClueId);
+    const passwordClue = clues.find((c) => c.id === loginPasswordClueId);
+    if (!node || !usernameClue || !passwordClue) return;
 
-    const attemptedUser = matchedUser ?? usernames[0];
-    const success = matchedUser !== null;
+    const success = tryLogin(node, usernameClue.value, passwordClue.value);
     const lines: TerminalLine[] = [
-      makeLine(`$ login --user ${attemptedUser.value} --pass ********`, "input"),
+      makeLine(`$ login --user ${usernameClue.value} --pass ********`, "input"),
       makeLine("AUTHENTICATING...", "output"),
     ];
     if (success) {
@@ -521,6 +632,9 @@ export const useGameStore = create<GameState>()(
       accessGrantedNodes: success
         ? { ...state.accessGrantedNodes, [currentNodeId]: true }
         : state.accessGrantedNodes,
+      loginPickerOpen: false,
+      loginUsernameClueId: null,
+      loginPasswordClueId: null,
     }));
   },
 
@@ -528,8 +642,15 @@ export const useGameStore = create<GameState>()(
     const level = LEVELS[index];
     if (!level) return;
     set({
+      briefingActive: true,
+      notifications: [],
       level,
       currentNodeId: level.entryNodeId,
+      visitedNodeIds: { [level.entryNodeId]: true },
+      networkMapOpen: false,
+      loginPickerOpen: false,
+      loginUsernameClueId: null,
+      loginPasswordClueId: null,
       currentPath: [],
       openFilePath: null,
       inspectingPath: null,
@@ -554,9 +675,12 @@ export const useGameStore = create<GameState>()(
   },
 
   saveClue: (input) => {
-    const { clues } = get();
-    const result = addClue(clues, input);
-    if (result.added) set({ clues: result.clues });
+    const { clues, level, currentNodeId } = get();
+    const result = addClue(clues, input, nodeTag(level, currentNodeId));
+    if (result.added) {
+      set({ clues: result.clues });
+      get().pushNotification(`Clue saved: ${input.label}`);
+    }
     return result.added;
   },
 
@@ -574,16 +698,15 @@ export const useGameStore = create<GameState>()(
   clearSlots: () => set({ slotA: null, slotB: null }),
 
   combineSlots: () => {
-    const { slotA, slotB, clues } = get();
+    const { slotA, slotB, clues, level, currentNodeId } = get();
     if (!slotA || !slotB) return;
     const result = tryCombine(slotA, slotB);
     if (result) {
-      const added = addClue(clues, {
-        type: result.type,
-        value: result.value,
-        label: result.label,
-        source: "workbench",
-      });
+      const added = addClue(
+        clues,
+        { type: result.type, value: result.value, label: result.label, source: "workbench" },
+        nodeTag(level, currentNodeId),
+      );
       set({
         clues: added.clues,
         slotA: null,
@@ -605,17 +728,16 @@ export const useGameStore = create<GameState>()(
     set((state) => ({ selectedClueId: state.selectedClueId === id ? null : id })),
 
   decodeClue: () => {
-    const { selectedClueId, clues } = get();
+    const { selectedClueId, clues, level, currentNodeId } = get();
     const clue = clues.find((c) => c.id === selectedClueId);
     if (!clue) return;
     const result = tryDecode(clue);
     if (result) {
-      const added = addClue(clues, {
-        type: result.type,
-        value: result.value,
-        label: result.label,
-        source: "decode",
-      });
+      const added = addClue(
+        clues,
+        { type: result.type, value: result.value, label: result.label, source: "decode" },
+        nodeTag(level, currentNodeId),
+      );
       set({
         clues: added.clues,
         selectedClueId: null,
@@ -630,17 +752,16 @@ export const useGameStore = create<GameState>()(
   },
 
   checkLeakDatabase: () => {
-    const { selectedClueId, clues } = get();
+    const { selectedClueId, clues, level, currentNodeId } = get();
     const clue = clues.find((c) => c.id === selectedClueId);
     if (!clue) return;
     const result = tryLeakCheck(clue);
     if (result) {
-      const added = addClue(clues, {
-        type: result.type,
-        value: result.value,
-        label: result.label,
-        source: "leak database",
-      });
+      const added = addClue(
+        clues,
+        { type: result.type, value: result.value, label: result.label, source: "leak database" },
+        nodeTag(level, currentNodeId),
+      );
       set({
         clues: added.clues,
         selectedClueId: null,
@@ -673,12 +794,12 @@ export const useGameStore = create<GameState>()(
     window.setTimeout(() => {
       if (get().crackingClueId !== clue.id) return;
       if (result) {
-        const added = addClue(get().clues, {
-          type: result.type,
-          value: result.value,
-          label: result.label,
-          source: "hash cracker",
-        });
+        const { clues: liveClues, level: liveLevel, currentNodeId: liveNodeId } = get();
+        const added = addClue(
+          liveClues,
+          { type: result.type, value: result.value, label: result.label, source: "hash cracker" },
+          nodeTag(liveLevel, liveNodeId),
+        );
         set((state) => ({
           clues: added.clues,
           crackingClueId: null,
@@ -698,6 +819,7 @@ export const useGameStore = create<GameState>()(
 
   resetProgress: () => {
     useGameStore.persist.clearStorage();
+    set({ completedLevels: {} });
     get().loadLevel(0);
   },
 }),
@@ -713,6 +835,10 @@ export const useGameStore = create<GameState>()(
     traceLevel: state.traceLevel,
     burned: state.burned,
     clues: state.clues,
+    completedLevels: state.completedLevels,
+    briefingActive: state.briefingActive,
+    visitedNodeIds: state.visitedNodeIds,
+    networkMapHintShown: state.networkMapHintShown,
   }),
   merge: (persisted, current) => {
     const p = persisted as Partial<PersistedState> | undefined;
@@ -729,6 +855,10 @@ export const useGameStore = create<GameState>()(
       traceLevel: p.traceLevel ?? 0,
       burned: p.burned ?? false,
       clues,
+      completedLevels: p.completedLevels ?? {},
+      briefingActive: p.briefingActive ?? true,
+      visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
+      networkMapHintShown: p.networkMapHintShown ?? false,
       terminalLines: briefingLines(level),
       terminalRevealCount: 0,
     };

@@ -27,6 +27,9 @@ export interface Clue {
   value: string;
   label: string;
   source: string;
+  /** Which node this was on hand when the clue was created — drives the grouped Clue Inventory view on multi-node levels. */
+  nodeId: string;
+  nodeLabel: string;
 }
 
 export interface ClueInput {
@@ -87,13 +90,17 @@ export function clueKey(type: ClueType, value: string): string {
 
 let clueCounter = 0;
 
-export function addClue(existing: Clue[], input: ClueInput): { clues: Clue[]; added: boolean } {
+export function addClue(
+  existing: Clue[],
+  input: ClueInput,
+  node: { id: string; label: string },
+): { clues: Clue[]; added: boolean } {
   const key = clueKey(input.type, input.value);
   if (existing.some((c) => clueKey(c.type, c.value) === key)) {
     return { clues: existing, added: false };
   }
   clueCounter += 1;
-  const clue: Clue = { id: `clue-${clueCounter}`, ...input };
+  const clue: Clue = { id: `clue-${clueCounter}`, nodeId: node.id, nodeLabel: node.label, ...input };
   return { clues: [...existing, clue], added: true };
 }
 

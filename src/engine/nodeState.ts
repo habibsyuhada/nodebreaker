@@ -26,6 +26,17 @@ export function tryLogin(node: LevelNodeDef, username: string, password: string)
   return node.users.some((u) => u.username === username && u.password === password);
 }
 
+/**
+ * A compact per-node label for UI that needs to tell nodes apart at a glance (StatusBar, the
+ * Network Map, grouped Clue Inventory headers). Every multi-node level's orgName already follows
+ * "Company — Descriptor" (see level05/level08), so the descriptor after the last " — " is a good
+ * short label with no extra per-node data field needed; falls back to the full orgName otherwise.
+ */
+export function shortNodeLabel(orgName: string): string {
+  const parts = orgName.split(" — ");
+  return parts[parts.length - 1];
+}
+
 export interface SearchResult {
   path: string[];
   snippet: string;
