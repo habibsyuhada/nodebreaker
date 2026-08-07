@@ -4,7 +4,9 @@ import { Sprite } from "./art/spriteEngine";
 import { playAmbientPulse, playGlitch } from "./audio/synth";
 import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { BriefingDialog } from "./components/BriefingDialog";
+import { LoginPicker } from "./components/LoginPicker";
 import { NetworkMap } from "./components/NetworkMap";
+import { NetworkMapHint } from "./components/NetworkMapHint";
 import { NotificationToast } from "./components/NotificationToast";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
@@ -257,7 +259,7 @@ function useContextActions(): ContextActionsResult {
   const closeSearch = useGameStore((s) => s.closeSearch);
   const goToPath = useGameStore((s) => s.goToPath);
   const attemptQuickLogin = useGameStore((s) => s.attemptQuickLogin);
-  const attemptLogin = useGameStore((s) => s.attemptLogin);
+  const setLoginPickerOpen = useGameStore((s) => s.setLoginPickerOpen);
   const setWorkbenchOpen = useGameStore((s) => s.setWorkbenchOpen);
   const combineSlots = useGameStore((s) => s.combineSlots);
   const clearSlots = useGameStore((s) => s.clearSlots);
@@ -352,7 +354,12 @@ function useContextActions(): ContextActionsResult {
       const hasUsername = clues.some((c) => c.type === "username");
       const hasPassword = clues.some((c) => c.type === "password");
       if (hasUsername && hasPassword) {
-        actions.push({ id: "login", label: "Login", onClick: attemptLogin, notable: true });
+        actions.push({
+          id: "login",
+          label: "Login",
+          onClick: () => setLoginPickerOpen(true),
+          notable: true,
+        });
       }
     }
     return actions;
@@ -473,7 +480,9 @@ function App() {
             <ActionBar actions={actions} />
             <TabBar />
             <NotificationToast />
+            <NetworkMapHint />
             <NetworkMap />
+            <LoginPicker />
             <BriefingDialog />
           </>
         )}

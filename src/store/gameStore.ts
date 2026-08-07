@@ -98,6 +98,13 @@ interface GameState {
   /** Whether the Network Map overlay is open — transient UI state, not persisted. */
   networkMapOpen: boolean;
   setNetworkMapOpen: (open: boolean) => void;
+  /**
+   * Whether the player has ever opened the Network Map (persisted, account-wide — not per-level).
+   * Gates NetworkMapHint: it appears once, automatically, the first time a level's pivot count
+   * makes the map actually useful, and never again once the player has found it themselves.
+   */
+  networkMapHintShown: boolean;
+  dismissNetworkMapHint: () => void;
 
   currentPath: string[];
   openFilePath: string[] | null;
@@ -154,7 +161,22 @@ interface GameState {
   goQuiet: () => void;
   tickTrace: () => void;
   attemptQuickLogin: () => void;
-  attemptLogin: () => void;
+
+  /**
+   * Generic (non-quickLogin) Login is a deliberate pick, not an auto-guess: on multi-node levels
+   * the Clue Inventory can hold credentials for several different nodes at once, and silently
+   * looping through every username x password combo (the old behavior) meant the terminal could
+   * narrate an attempt with a clue the player didn't consciously choose. The picker's selection
+   * state is transient — not persisted, resets whenever it closes.
+   */
+  loginPickerOpen: boolean;
+  setLoginPickerOpen: (open: boolean) => void;
+  loginUsernameClueId: string | null;
+  loginPasswordClueId: string | null;
+  selectLoginUsername: (id: string) => void;
+  selectLoginPassword: (id: string) => void;
+  confirmLogin: () => void;
+
   loadLevel: (index: number) => void;
   /** Returns true if a new clue was added, false if it was already saved. */
   saveClue: (input: ClueInput) => boolean;
@@ -200,6 +222,7 @@ interface PersistedState {
   completedLevels: Record<string, true>;
   briefingActive: boolean;
   visitedNodeIds: Record<string, true>;
+  networkMapHintShown: boolean;
 }
 
 const SAVE_KEY = "nodebreaker-save";
@@ -236,7 +259,9 @@ export const useGameStore = create<GameState>()(
   currentNodeId: LEVELS[0].entryNodeId,
   visitedNodeIds: { [LEVELS[0].entryNodeId]: true },
   networkMapOpen: false,
-  setNetworkMapOpen: (open) => set({ networkMapOpen: open }),
+  setNetworkMapOpen: (open) => set({ networkMapOpen: open, networkMapHintShown: open || get().networkMapHintShown }),
+  networkMapHintShown: false,
+  dismissNetworkMapHint: () => set({ networkMapHintShown: true }),
   currentPath: [],
   openFilePath: null,
   inspectingPath: null,
@@ -559,27 +584,41 @@ export const useGameStore = create<GameState>()(
     }));
   },
 
-  attemptLogin: () => {
-    const { level, currentNodeId, clues } = get();
-    const node = level.nodes.find((n) => n.id === currentNodeId);
-    if (!node) return;
+  loginPickerOpen: false,
+  setLoginPickerOpen: (open) => {
+    if (!open) {
+      set({ loginPickerOpen: false });
+      return;
+    }
+    // Opening fresh: auto-preselect when there's exactly one of each, so single-credential
+    // levels (everything but Level 8 so far) stay a two-tap confirm instead of forcing a pick
+    // from a list of one.
+    const { clues } = get();
     const usernames = clues.filter((c) => c.type === "username");
     const passwords = clues.filter((c) => c.type === "password");
-    if (usernames.length === 0 || passwords.length === 0) return;
+    set({
+      loginPickerOpen: true,
+      loginUsernameClueId: usernames.length === 1 ? usernames[0].id : null,
+      loginPasswordClueId: passwords.length === 1 ? passwords[0].id : null,
+    });
+  },
+  loginUsernameClueId: null,
+  loginPasswordClueId: null,
+  selectLoginUsername: (id) =>
+    set((state) => ({ loginUsernameClueId: state.loginUsernameClueId === id ? null : id })),
+  selectLoginPassword: (id) =>
+    set((state) => ({ loginPasswordClueId: state.loginPasswordClueId === id ? null : id })),
 
-    let matchedUser: Clue | null = null;
-    for (const u of usernames) {
-      const hasMatch = passwords.some((p) => tryLogin(node, u.value, p.value));
-      if (hasMatch) {
-        matchedUser = u;
-        break;
-      }
-    }
+  confirmLogin: () => {
+    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId } = get();
+    const node = level.nodes.find((n) => n.id === currentNodeId);
+    const usernameClue = clues.find((c) => c.id === loginUsernameClueId);
+    const passwordClue = clues.find((c) => c.id === loginPasswordClueId);
+    if (!node || !usernameClue || !passwordClue) return;
 
-    const attemptedUser = matchedUser ?? usernames[0];
-    const success = matchedUser !== null;
+    const success = tryLogin(node, usernameClue.value, passwordClue.value);
     const lines: TerminalLine[] = [
-      makeLine(`$ login --user ${attemptedUser.value} --pass ********`, "input"),
+      makeLine(`$ login --user ${usernameClue.value} --pass ********`, "input"),
       makeLine("AUTHENTICATING...", "output"),
     ];
     if (success) {
@@ -593,6 +632,9 @@ export const useGameStore = create<GameState>()(
       accessGrantedNodes: success
         ? { ...state.accessGrantedNodes, [currentNodeId]: true }
         : state.accessGrantedNodes,
+      loginPickerOpen: false,
+      loginUsernameClueId: null,
+      loginPasswordClueId: null,
     }));
   },
 
@@ -606,6 +648,9 @@ export const useGameStore = create<GameState>()(
       currentNodeId: level.entryNodeId,
       visitedNodeIds: { [level.entryNodeId]: true },
       networkMapOpen: false,
+      loginPickerOpen: false,
+      loginUsernameClueId: null,
+      loginPasswordClueId: null,
       currentPath: [],
       openFilePath: null,
       inspectingPath: null,
@@ -793,6 +838,7 @@ export const useGameStore = create<GameState>()(
     completedLevels: state.completedLevels,
     briefingActive: state.briefingActive,
     visitedNodeIds: state.visitedNodeIds,
+    networkMapHintShown: state.networkMapHintShown,
   }),
   merge: (persisted, current) => {
     const p = persisted as Partial<PersistedState> | undefined;
@@ -812,6 +858,7 @@ export const useGameStore = create<GameState>()(
       completedLevels: p.completedLevels ?? {},
       briefingActive: p.briefingActive ?? true,
       visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
+      networkMapHintShown: p.networkMapHintShown ?? false,
       terminalLines: briefingLines(level),
       terminalRevealCount: 0,
     };

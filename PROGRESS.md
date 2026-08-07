@@ -54,7 +54,9 @@ src/
                   BriefingDialog.tsx (per-level mission overlay, gates trace),
                   NotificationToast.tsx (self-dismissing toast stack for clue
                   saves + newly-unlocked actions), NetworkMap.tsx (pivot
-                  navigation overlay for multi-node levels)
+                  navigation overlay for multi-node levels), NetworkMapHint.tsx
+                  (one-time discovery nudge), LoginPicker.tsx (explicit
+                  username/password clue picker, replaces auto-guess login)
   screens/        MainMenu.tsx, LevelSelect.tsx — top-level screens shown
                   before the game view (App.tsx's `screen` store field)
   store/          gameStore.ts — single Zustand store, all game state,
@@ -544,6 +546,57 @@ vite.config.ts    VitePWA plugin: manifest, service worker (generateSW),
   from Finance, the map correctly shows HR as VISITED (dimmed,
   non-interactive) rather than PIVOT, since Finance has no direct pivot to
   HR in `level08.ts`.
+
+### Stage 14 mechanics added — Network Map discoverability + explicit Login
+
+- **Network Map button now reads as a button, plus a one-time discovery
+  hint**: StatusBar's NODE indicator gained a visible border, background,
+  and a "▾" affordance glyph (`StatusBar.tsx`) instead of looking like
+  plain dim text. Fixing this surfaced a real layout bug: a long org name
+  (Level 8 Edge's "Employee Portal / VPN Gateway") wrapped inside the
+  button and pushed the TRACE indicator out of the fixed `h-11` header,
+  breaking the row — fixed with an explicit `min-w-0`/`truncate` chain
+  (short label span shrinks/ellipsizes, the `NODE: <ip>` prefix and TRACE
+  side both stay `shrink-0 whitespace-nowrap` so they never wrap or lose
+  space to the truncating span). Also added `NetworkMapHint.tsx`: a
+  one-time dismissible callout (new persisted `networkMapHintShown` flag)
+  that appears automatically the first time a level's `visitedNodeIds`
+  count shows the map is actually useful (i.e., right after a player's
+  first pivot), pointing at the now-obviously-tappable NODE bar.
+  `setNetworkMapOpen` also marks the flag shown on open, so a player who
+  finds the button on their own before ever pivoting never sees the
+  redundant hint. This is a deliberate one-off exception to this project's
+  own "no popup tutorials" rule (see the onboarding note near the bottom
+  of this file) — added on explicit request after a real playtester didn't
+  realize the bar was tappable, which the rule's "introduce every new verb
+  through a situation where it's the only way out" premise doesn't cover
+  for a pure navigation/orientation aid like this one.
+- **Login is now an explicit username/password clue picker, not an
+  auto-guess** (`LoginPicker.tsx`; `gameStore.ts`'s `loginPickerOpen` /
+  `loginUsernameClueId` / `loginPasswordClueId` / `selectLoginUsername` /
+  `selectLoginPassword` / `confirmLogin`, replacing the old `attemptLogin`
+  entirely): the previous generic-login action silently looped through
+  every username × password clue combo in the level-wide Clue Inventory
+  and narrated whichever pair happened to match first. That's invisible
+  and confusing on a level like Level 8, where by the time a player reaches
+  HR they may already be holding the Edge VPN credential too — tapping
+  Login could visibly attempt (and correctly fail with) the VPN pair when
+  the player's mental model was "log into HR," with no way to tell the game
+  to try their actual HR credential instead. The picker surfaces every
+  username/password clue as a tappable row (tagged with its short origin-
+  node label via `shortNodeLabel`, but only when the picker's candidates
+  actually span more than one node — single-account levels don't show the
+  label at all) and only attempts the pair the player explicitly selects.
+  `setLoginPickerOpen(true)` auto-preselects when there's exactly one
+  username and one password clue, so every level except 8 stays a
+  two-tap confirm instead of forcing a redundant pick from a list of one.
+  Verified end-to-end: on Level 8's HR node with both the VPN and HR
+  credentials in inventory, explicitly picking the VPN pair correctly
+  fails (`ACCESS DENIED`, no `accessGrantedNodes` change) and picking the
+  HR pair correctly succeeds — confirming the reported bug was a UX/
+  legibility problem (silent wrong-looking auto-attempt), not a login-logic
+  bug (the old matching logic was already node-scoped and correct;
+  players just had no way to see or choose what it was trying).
 
 ## What's next
 
