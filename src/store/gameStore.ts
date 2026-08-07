@@ -11,6 +11,7 @@ import {
   traceLogFactId,
 } from "../engine/traceSystem";
 import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
+import type { Lang } from "../i18n";
 import { LEVELS } from "../levels";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
 
@@ -68,6 +69,7 @@ interface GameState {
 
   /** Level ids that have been completed at least once — drives Level Select's lock/checkmark state. */
   completedLevels: Record<string, true>;
+  /** Sets outroActive (if the level has an outro) in the same call — see outroActive doc below. */
   markLevelComplete: (levelId: string) => void;
 
   /**
@@ -77,6 +79,25 @@ interface GameState {
    */
   briefingActive: boolean;
   dismissBriefing: () => void;
+
+  /** UI language for scene content (SceneCard/SceneDef text) — persisted, doesn't affect other UI strings. */
+  lang: Lang;
+  setLang: (lang: Lang) => void;
+
+  /**
+   * True from the moment a level (re)loads until the player dismisses its intro victim scene
+   * (if the level has one — levels without `intro` never set this true). Covers BriefingDialog
+   * too, so the order is: intro scene → briefing → play.
+   */
+  introActive: boolean;
+  dismissIntro: () => void;
+
+  /**
+   * True once markLevelComplete fires for a level with an `outro` scene, until the player
+   * dismisses it. Covers StatusBar/ActionBar/TabBar so it reads as a full scene, not a panel.
+   */
+  outroActive: boolean;
+  dismissOutro: () => void;
 
   /**
    * Short-lived toast queue — surfaces things easy to miss while looking at a different panel:
@@ -223,6 +244,9 @@ interface PersistedState {
   briefingActive: boolean;
   visitedNodeIds: Record<string, true>;
   networkMapHintShown: boolean;
+  lang: Lang;
+  introActive: boolean;
+  outroActive: boolean;
 }
 
 const SAVE_KEY = "nodebreaker-save";
@@ -235,10 +259,22 @@ export const useGameStore = create<GameState>()(
 
   completedLevels: {},
   markLevelComplete: (levelId) =>
-    set((state) => ({ completedLevels: { ...state.completedLevels, [levelId]: true } })),
+    set((state) => ({
+      completedLevels: { ...state.completedLevels, [levelId]: true },
+      outroActive: state.level.id === levelId && Boolean(state.level.outro),
+    })),
 
   briefingActive: true,
   dismissBriefing: () => set({ briefingActive: false }),
+
+  lang: "en",
+  setLang: (lang) => set({ lang }),
+
+  introActive: false,
+  dismissIntro: () => set({ introActive: false }),
+
+  outroActive: false,
+  dismissOutro: () => set({ outroActive: false }),
 
   notifications: [],
   pushNotification: (text) => {
@@ -643,6 +679,8 @@ export const useGameStore = create<GameState>()(
     if (!level) return;
     set({
       briefingActive: true,
+      introActive: Boolean(level.intro),
+      outroActive: false,
       notifications: [],
       level,
       currentNodeId: level.entryNodeId,
@@ -839,6 +877,9 @@ export const useGameStore = create<GameState>()(
     briefingActive: state.briefingActive,
     visitedNodeIds: state.visitedNodeIds,
     networkMapHintShown: state.networkMapHintShown,
+    lang: state.lang,
+    introActive: state.introActive,
+    outroActive: state.outroActive,
   }),
   merge: (persisted, current) => {
     const p = persisted as Partial<PersistedState> | undefined;
@@ -859,6 +900,9 @@ export const useGameStore = create<GameState>()(
       briefingActive: p.briefingActive ?? true,
       visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
       networkMapHintShown: p.networkMapHintShown ?? false,
+      lang: p.lang ?? "en",
+      introActive: p.introActive ?? false,
+      outroActive: p.outroActive ?? false,
       terminalLines: briefingLines(level),
       terminalRevealCount: 0,
     };

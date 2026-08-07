@@ -598,82 +598,104 @@ vite.config.ts    VitePWA plugin: manifest, service worker (generateSW),
   bug (the old matching logic was already node-scoped and correct;
   players just had no way to see or choose what it was trying).
 
-### Stage 15 (planned) — Victim scenes before/after each hack
+### Stage 15 mechanics added — Victim scenes before/after each hack
 
-**Status: planned, not yet implemented.** Full plan lives at
-`/root/.claude/plans/nah-aku-pengen-ada-dazzling-clover.md` (agent-local,
-not in the repo) — this entry is the durable summary so the intent survives
-even if that file doesn't.
-
-**Problem:** the game is mechanically complete but emotionally flat.
-`BriefingDialog` opens a level with dry technical copy ("Connection
+**Problem:** the game was mechanically complete but emotionally flat.
+`BriefingDialog` opened a level with dry technical copy ("Connection
 established. Target: unsecured router...") and `BreachedScreen`
-(`App.tsx:109`) closes it with "NODE BREACHED — next target is online
-whenever you're ready." No victim is ever shown being hurt, so there's
+(`App.tsx:109`) closed it with "NODE BREACHED — next target is online
+whenever you're ready." No victim was ever shown being hurt, so there was
 nothing pulling the player toward wanting to hack, and no payoff when they
-do.
+did.
 
-**Design:** each level gets a **before-hack scene** (intercepted
+**Design:** each level now gets a **before-hack scene** (intercepted
 comms — group chat, support ticket, deleted review, internal memo) that
 escalates through 4 fixed beats — context → a *named, specific, powerless*
 person harmed → a polite request denied by process → the perpetrator
 gloating in a channel they think is private, ending on an explicit
 untouchability line ("what exactly are they going to do about it?"). And an
-**after-hack scene** that mirrors it card-for-card: each outro card
-`answers` a specific intro card, rendering that card's line
-struck-through above the new one, ending on the perpetrator's panic in as
-few words as possible.
+**after-hack scene** that mirrors it card-for-card: each outro card's
+`answers` field names a specific intro card, and `StoryScene` renders that
+card's opening line struck-through above the new one, ending on the
+perpetrator's panic in as few words as possible.
 
-All 8 levels get a victim: neighbor router-hogging (petty, teaches the
+All 8 levels have a victim: neighbor router-hogging (petty, teaches the
 grammar) → storefront chargeback stonewalling → an accounting junior framed
 as the fall guy → an engineer NDA'd for whistleblowing → a health insurer's
 deny-first quota → a driver fired over a doctored timesheet (the in-fiction
 reason Level 6's honeypot folder exists) → a family's land deed "lost" to a
 developer → and Level 8 (Halcyon Dynamics) revealed as the entity behind
 all of the above, with `correlate --sources hr,finance` — already Level 8's
-literal win condition — doubling as the payoff mechanic. One callback card
-per prior victim, Mrs. Adisa's (Level 1) last and smallest for the tonal
-landing.
+literal win condition — doubling as the payoff mechanic. Level 8's outro
+carries one callback card per prior victim, Mrs. Adisa's (Level 1) last and
+smallest for the tonal landing.
 
-**Scope decisions locked with the user:** content ships in English with a
-real i18n layer prepared (`src/i18n/index.ts`, `LocalizedText` type, `t()`
-helper — minimal, dependency-free; existing UI strings stay hardcoded
-English for now, migrating them is explicitly out of scope for this stage),
-feed-of-cards visual format with new pixel-art avatar sprites (not
-cinematic narration cards), all 8 levels done in one pass, and the
-connected-antagonist structure above.
+**Scope decisions locked with the user:** content ships fully bilingual
+(English + Bahasa Indonesia) via a new real i18n layer (`src/i18n/index.ts`
+— `Lang`, `LocalizedText` = `string | Partial<Record<Lang, string>>`, and a
+`t()` resolver that falls back en → first available; deliberately minimal,
+no dependency), feed-of-cards visual format with new pixel-art avatar
+sprites (not cinematic narration cards), all 8 levels done in one pass, and
+the connected-antagonist structure above. Existing UI strings elsewhere
+stay hardcoded English — migrating them to the i18n layer is out of scope
+for this stage; a language toggle (English / Bahasa Indonesia) was added to
+Settings (`App.tsx`'s `SettingsPanel`) purely to exercise it.
 
-**Planned wiring** (follows this project's established
-types → store action → `App.tsx` surfacing pattern, see the note at the
-bottom of "Known gaps" above):
-- `SceneCard`/`SceneDef` types in `levels/types.ts`; `LevelDef` gains
-  optional `intro?: SceneDef` / `outro?: SceneDef` so scene-less levels
-  keep working unchanged.
-- Store gains `lang` (persisted, EN/ID toggle in Settings), `introActive`/
+**Wiring** (follows this project's established types → store action →
+`App.tsx` surfacing pattern, see the note at the bottom of "Known gaps"
+below):
+- `SceneSourceKind`, `SceneCard`, `SceneDef` types added to
+  `levels/types.ts`; `LevelDef` gained optional `intro?: SceneDef` /
+  `outro?: SceneDef` so a scene-less level keeps working unchanged (none do
+  now — all 8 levels have both).
+- Store (`gameStore.ts`) gained `lang`/`setLang` (persisted), `introActive`/
   `dismissIntro` (set alongside `briefingActive` in `loadLevel`), and
-  `outroActive`/`dismissOutro` (set in `markLevelComplete`, which already
-  fires exactly once per completion). New fields must be added to all
-  three of `PersistedState`, `partialize`, and `merge` — this store
-  hand-writes persistence in three places and it's the easiest thing to
-  miss.
-- New `StoryScene.tsx` component, one for both scenes (`tone: "intro" |
-  "outro"`), full-bleed overlay above `BriefingDialog`'s z-layer so the
-  order is intro → briefing → play → outro → `BreachedScreen`. Must render
-  as a sibling of `<main>` in `App.tsx`, not inside `ActivePanel` (unlike
-  `BreachedScreen`, which only covers the panel content today) — the outro
-  needs to cover StatusBar/ActionBar/TabBar too.
-- Four new sprites in `art/sprites.ts` (person, suit, alert, megaphone)
-  using the existing `SpriteGrid`/`BASE_PALETTE` format — no new palette
-  needed, tone comes from which of the existing `a`/`w` slots each grid
-  uses.
+  `outroActive`/`dismissOutro` (set inside `markLevelComplete`, which
+  already fires exactly once per completion via `TraceTicker`'s
+  `completedRef` guard — no new completion-detection hook needed). All
+  three new fields were threaded through `PersistedState`, `partialize`,
+  and `merge` — this store hand-writes persistence in three places and
+  it's the easiest thing to miss.
+- New `StoryScene.tsx`: one component for both scenes (self-contained,
+  reads `introActive`/`outroActive` directly off the store — no props,
+  same pattern as `BriefingDialog`/`NetworkMap`), full-bleed overlay at
+  `z-[60]`, one layer above `BriefingDialog`'s `z-50`, so the sequence on a
+  level with both is intro → briefing → play → outro → `BreachedScreen`.
+  Rendered in `App.tsx` as a sibling of `<main>` (not inside `ActivePanel`,
+  unlike `BreachedScreen`) so the outro covers StatusBar/ActionBar/TabBar
+  too. Tap-anywhere reveals the next card (`playTypeTick`, or `playGlitch`
+  + vibrate on a `perp` card, or `playCombineSuccess` on an outro card that
+  `answers` something); a `closer` line types in afterward reusing the
+  Terminal's `TYPE_MS_PER_CHAR` feel; Skip is always available top-right.
+- Four new 16×16 sprites in `art/sprites.ts` (`PERSON_SPRITE`,
+  `SUIT_SPRITE`, `ALERT_SPRITE`, `MEGAPHONE_SPRITE`) using the existing
+  `SpriteGrid`/`BASE_PALETTE` format — no new palette needed, tone comes
+  from which of the existing `a`/`w` slots each grid uses (e.g. the suit's
+  necktie is `w`).
+- New `.card-in`/`@keyframes card-in` in `index.css` for the per-card
+  fade/slide-in — automatically covered by the existing global
+  `prefers-reduced-motion` rule (`* { animation-duration: 0.001ms ... }`),
+  no new media-query branch needed.
 
-**Verification plan:** oxlint + `tsc -b --noEmit` clean; manual playtest at
-mobile width confirming trace stays frozen during the intro (checked
-specifically on Level 3, the first trace-enabled level), outro covers the
-full chrome, struck-through mirror lines render correctly, Level 7's
-`requiresFacts: ["logs-falsified"]` outro card gates correctly, reload
-mid-scene resumes at the same gate, language toggle switches scene text,
-and `npm run build` still succeeds.
+**Verified:** `npx tsc -b --noEmit`, `npm run lint` (oxlint), and
+`npm run build` all clean. Playwright-driven playtest at 400×800 (mobile
+width) confirmed: intro renders card-by-card with correct per-kind chrome
+(victim green border, perp red border + glitch-shift, system/bystander
+neutral) → "Continue" hands off to `BriefingDialog` (not straight into
+play) → completing Level 1 triggers the outro immediately, covering
+StatusBar/ActionBar/TabBar, with the struck-through mirror line rendering
+correctly above each payoff line → dismissing the outro reveals
+`BreachedScreen` with Next Level intact → reloading mid-outro and resuming
+via Main Menu's "Continue" correctly re-enters the outro at its first card
+→ the Settings language toggle immediately switches scene text to Bahasa
+Indonesia on next level entry. Cross-checked programmatically that every
+outro `answers` id resolves to a real intro card id across all 8 levels
+(none missing). Trace-frozen-during-intro was **not** re-verified via a
+scripted Level 3 playthrough (locked behind completing Levels 1–2) — it
+follows from `introActive` always being a subset of `briefingActive`'s
+true-duration (both set together in `loadLevel`; `dismissIntro` always
+fires before `dismissBriefing` in the UI flow) and `TraceTicker`'s existing
+`briefingActive` gate, which this stage did not modify.
 
 ## What's next
 

@@ -11,6 +11,112 @@ export const LEVEL_06: LevelDef = {
   ],
   entryNodeId: "fleetline-srv",
   successText: ["ACCESS GRANTED.", "You're in — logistics ops console unlocked.", "LEVEL 6 COMPLETE."],
+  intro: {
+    kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
+    closer: {
+      en: "That folder was never about a trap. Now it's evidence.",
+      id: "Folder itu awalnya bukan soal jebakan. Sekarang jadi bukti.",
+    },
+    cards: [
+      {
+        id: "l6-context",
+        kind: "system",
+        channel: { en: "#dispatch", id: "#dispatch" },
+        author: { en: "Fleet Bot", id: "Bot Armada" },
+        body: [
+          {
+            en: "Route 12 — shift closed. Timesheet auto-synced.",
+            id: "Rute 12 — shift selesai. Timesheet tersinkron otomatis.",
+          },
+        ],
+      },
+      {
+        id: "l6-harm",
+        kind: "victim",
+        channel: { en: "#dispatch", id: "#dispatch" },
+        author: { en: "Bayu (Driver, Route 12)", id: "Bayu (Sopir, Rute 12)" },
+        meta: { en: "Termination notice", id: "Surat pemutusan kerja" },
+        body: [
+          {
+            en: "I stopped for 9 minutes because the loading dock was blocked, it's on the dashcam. My timesheet says something else now and HR won't look at the video.",
+            id: "Saya berhenti 9 menit karena dermaga muat lagi diblokir, ada di rekaman dashcam. Timesheet saya sekarang beda dan HR gak mau lihat videonya.",
+          },
+        ],
+      },
+      {
+        id: "l6-brushoff",
+        kind: "system",
+        channel: { en: "#dispatch", id: "#dispatch" },
+        author: { en: "HR (auto-reply)", id: "HR (balasan otomatis)" },
+        body: [
+          {
+            en: "The timesheet is the system of record. Dashcam footage is not part of the review process.",
+            id: "Timesheet adalah catatan resmi sistem. Rekaman dashcam bukan bagian dari proses peninjauan.",
+          },
+        ],
+      },
+      {
+        id: "l6-gloat",
+        kind: "perp",
+        channel: { en: "#security-ops (private)", id: "#security-ops (privat)" },
+        author: { en: "Ops Security", id: "Keamanan Ops" },
+        body: [
+          {
+            en: "We put a folder out there. Anything that opens it, we know exactly who to let go.",
+            id: "Kita taruh folder umpan di situ. Apa pun yang buka folder itu, kita langsung tahu siapa yang harus dipecat.",
+          },
+          {
+            en: "Bayu's file's already edited. Nobody's going back to check a video.",
+            id: "File Bayu udah diedit. Gak bakal ada yang balik ngecek video.",
+          },
+        ],
+      },
+    ],
+  },
+  outro: {
+    kicker: { en: "FALLOUT", id: "DAMPAK" },
+    closer: { en: "The watcher list is the proof now.", id: "Daftar pengawas itu sekarang jadi buktinya." },
+    cards: [
+      {
+        id: "l6-outro-relief",
+        kind: "victim",
+        channel: { en: "#dispatch", id: "#dispatch" },
+        author: { en: "Bayu (Driver, Route 12)", id: "Bayu (Sopir, Rute 12)" },
+        body: [
+          {
+            en: "Original timesheet's back, matches the dashcam exactly. Every driver on the roster got a copy too.",
+            id: "Timesheet asli udah balik, cocok persis sama dashcam. Semua sopir di daftar juga dapat salinannya.",
+          },
+        ],
+        answers: "l6-harm",
+      },
+      {
+        id: "l6-outro-mailed",
+        kind: "public",
+        channel: { en: "#dispatch — all-drivers", id: "#dispatch — semua-sopir" },
+        author: { en: "System", id: "Sistem" },
+        body: [
+          {
+            en: "Pre-edit timesheets for the last quarter mailed to every driver. Honeypot watcher list attached as proof of intent.",
+            id: "Timesheet sebelum diedit untuk kuartal terakhir dikirim ke semua sopir. Daftar pengawas honeypot dilampirkan sebagai bukti niat.",
+          },
+        ],
+        answers: "l6-gloat",
+      },
+      {
+        id: "l6-outro-panic",
+        kind: "perp",
+        channel: { en: "#security-ops (private)", id: "#security-ops (privat)" },
+        author: { en: "Ops Security", id: "Keamanan Ops" },
+        body: [
+          {
+            en: "the watcher list wasn't supposed to leave this channel",
+            id: "daftar pengawas itu harusnya gak keluar dari channel ini",
+          },
+        ],
+      },
+    ],
+  },
   nodes: [
     {
       id: "fleetline-srv",

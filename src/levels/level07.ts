@@ -16,6 +16,113 @@ export const LEVEL_07: LevelDef = {
     "The real records will need more than this.",
   ],
   completionRequires: ["read-citizen-records", "logs-falsified"],
+  intro: {
+    kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
+    closer: {
+      en: "There's a file. It just needs to be findable again.",
+      id: "Berkasnya ada. Cuma perlu dibuat bisa ditemukan lagi.",
+    },
+    cards: [
+      {
+        id: "l7-context",
+        kind: "system",
+        channel: { en: "Cityview Records — Public Counter Log", id: "Cityview Records — Log Loket Publik" },
+        author: { en: "Front Desk System", id: "Sistem Loket" },
+        body: [
+          {
+            en: "Request #7724 — Deed lookup, Ward 3 — status: NOT FOUND",
+            id: "Permohonan #7724 — Pencarian akta, Wilayah 3 — status: TIDAK DITEMUKAN",
+          },
+        ],
+      },
+      {
+        id: "l7-harm",
+        kind: "victim",
+        channel: { en: "Cityview Records — Public Counter Log", id: "Cityview Records — Log Loket Publik" },
+        author: { en: "The Santoso Family", id: "Keluarga Santoso" },
+        meta: { en: "3rd visit", id: "Kunjungan ke-3" },
+        body: [
+          {
+            en: "Our family's land deed has been on file since 1987. Now the counter says it doesn't exist. We have the original registration number.",
+            id: "Akta tanah keluarga kami sudah tercatat sejak 1987. Sekarang loket bilang gak ada. Kami punya nomor registrasi aslinya.",
+          },
+        ],
+      },
+      {
+        id: "l7-brushoff",
+        kind: "system",
+        channel: { en: "Cityview Records — Public Counter Log", id: "Cityview Records — Log Loket Publik" },
+        author: { en: "Records Clerk (front desk)", id: "Petugas Arsip (loket depan)" },
+        body: [
+          {
+            en: "The file was never there. Show me the file that says it was. Next in line, please.",
+            id: "Berkasnya memang gak pernah ada. Coba tunjukkan berkas yang bilang itu ada. Silakan yang berikutnya.",
+          },
+        ],
+      },
+      {
+        id: "l7-gloat",
+        kind: "perp",
+        channel: { en: "DM — Records Director to a developer contact", id: "DM — Direktur Arsip ke kontak pengembang" },
+        author: { en: "Records Director", id: "Direktur Arsip" },
+        body: [
+          {
+            en: "The file was never there. Show me the file that says it was.",
+            id: "Berkasnya memang gak pernah ada. Coba tunjukkan berkas yang bilang itu ada.",
+          },
+          {
+            en: "Ward 3 parcel's clear for your permit whenever you're ready.",
+            id: "Bidang di Wilayah 3 sudah bersih, izin bisa jalan kapan saja.",
+          },
+        ],
+      },
+    ],
+  },
+  outro: {
+    kicker: { en: "FALLOUT", id: "DAMPAK" },
+    closer: { en: "The register looks like it was never touched.", id: "Register terlihat seperti tak pernah disentuh." },
+    cards: [
+      {
+        id: "l7-outro-relief",
+        kind: "victim",
+        channel: { en: "Cityview Records — Public Counter Log", id: "Cityview Records — Log Loket Publik" },
+        author: { en: "The Santoso Family", id: "Keluarga Santoso" },
+        body: [
+          {
+            en: "Deed's back in the register, original date and all. The clerk called it a filing error. We're not asking questions.",
+            id: "Akta sudah kembali di register, lengkap dengan tanggal aslinya. Petugas bilang itu cuma kesalahan pengarsipan. Kami gak nanya-nanya lagi.",
+          },
+        ],
+        answers: "l7-harm",
+      },
+      {
+        id: "l7-outro-clean",
+        kind: "system",
+        channel: { en: "Cityview Records — Internal Audit", id: "Cityview Records — Audit Internal" },
+        author: { en: "Audit System", id: "Sistem Audit" },
+        body: [
+          {
+            en: "Register entry restored, timestamp and access log both read clean. No discrepancy flagged.",
+            id: "Entri register dipulihkan, cap waktu dan log akses sama-sama terlihat bersih. Tidak ada kejanggalan yang tertandai.",
+          },
+        ],
+        answers: "l7-gloat",
+        requiresFacts: ["logs-falsified"],
+      },
+      {
+        id: "l7-outro-panic",
+        kind: "perp",
+        channel: { en: "DM — Records Director to a developer contact", id: "DM — Direktur Arsip ke kontak pengembang" },
+        author: { en: "Records Director", id: "Direktur Arsip" },
+        body: [
+          {
+            en: "the parcel's back on file, I don't know how",
+            id: "bidangnya muncul lagi di berkas, saya juga gak ngerti kenapa",
+          },
+        ],
+      },
+    ],
+  },
   nodes: [
     {
       id: "cityview-srv",

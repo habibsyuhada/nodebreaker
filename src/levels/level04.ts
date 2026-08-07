@@ -12,6 +12,109 @@ export const LEVEL_04: LevelDef = {
   ],
   entryNodeId: "nimbus-app",
   successText: ["ACCESS GRANTED.", "You're in — deploy pipeline unlocked.", "LEVEL 4 COMPLETE."],
+  intro: {
+    kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
+    closer: {
+      en: "The NDA doesn't cover a public document.",
+      id: "NDA gak berlaku buat dokumen publik.",
+    },
+    cards: [
+      {
+        id: "l4-context",
+        kind: "system",
+        channel: { en: "#eng-standup", id: "#eng-standup" },
+        author: { en: "Platform Bot", id: "Bot Platform" },
+        body: [
+          {
+            en: "Deploy pipeline green. Staging: nimbus-app. Next release: Friday.",
+            id: "Deploy pipeline hijau. Staging: nimbus-app. Rilis berikutnya: Jumat.",
+          },
+        ],
+      },
+      {
+        id: "l4-harm",
+        kind: "victim",
+        channel: { en: "#eng-standup", id: "#eng-standup" },
+        author: { en: "Yosef (Backend)", id: "Yosef (Backend)" },
+        meta: { en: "3 weeks ago", id: "3 minggu lalu" },
+        body: [
+          {
+            en: "The analytics SDK is collecting way more than the consent screen says. I flagged this in writing twice. Can we fix the consent copy before Friday's release?",
+            id: "SDK analitik ini ngumpulin data jauh lebih banyak dari yang tertulis di layar consent. Saya sudah laporkan tertulis dua kali. Bisa tolong perbaiki teks consent-nya sebelum rilis Jumat?",
+          },
+        ],
+      },
+      {
+        id: "l4-brushoff",
+        kind: "system",
+        channel: { en: "#legal-eng", id: "#legal-eng" },
+        author: { en: "Legal (auto-thread)", id: "Legal (thread otomatis)" },
+        body: [
+          {
+            en: "Reviewed. Consent screen is defensible as written. No changes needed for Friday.",
+            id: "Sudah ditinjau. Layar consent sudah bisa dipertahankan secara hukum apa adanya. Tidak perlu perubahan untuk Jumat.",
+          },
+        ],
+      },
+      {
+        id: "l4-gloat",
+        kind: "perp",
+        channel: { en: "DM — Platform Lead to Legal", id: "DM — Platform Lead ke Legal" },
+        author: { en: "Platform Lead", id: "Platform Lead" },
+        body: [
+          {
+            en: "Legal says the consent screen is defensible. He signed an NDA on the way out. He's a line item now.",
+            id: "Legal bilang layar consent-nya aman secara hukum. Dia teken NDA pas keluar. Sekarang dia cuma jadi baris di laporan.",
+          },
+          { en: "Ship it Friday.", id: "Rilis aja hari Jumat." },
+        ],
+      },
+    ],
+  },
+  outro: {
+    kicker: { en: "FALLOUT", id: "DAMPAK" },
+    closer: { en: "It's out now.", id: "Sekarang sudah tersebar." },
+    cards: [
+      {
+        id: "l4-outro-relief",
+        kind: "victim",
+        channel: { en: "Personal blog — unlisted, now public", id: "Blog pribadi — tak terdaftar, kini publik" },
+        author: { en: "Yosef (Backend)", id: "Yosef (Backend)" },
+        body: [
+          {
+            en: "I can finally say this without breaking anything: I was right, and now everyone can see the config that proves it.",
+            id: "Akhirnya saya bisa ngomong ini tanpa melanggar apa pun: saya benar, dan sekarang semua orang bisa lihat konfigurasi yang membuktikannya.",
+          },
+        ],
+        answers: "l4-harm",
+      },
+      {
+        id: "l4-outro-press",
+        kind: "public",
+        channel: { en: "Tech Press — Breaking", id: "Media Teknologi — Berita Terbaru" },
+        author: { en: "@dataleaks_daily", id: "@dataleaks_daily" },
+        body: [
+          {
+            en: "Leaked config + suppressed internal memo show Nimbus SDK over-collecting far beyond its consent screen.",
+            id: "Konfigurasi bocor + memo internal yang dibungkam menunjukkan SDK Nimbus mengumpulkan data jauh melebihi layar consent-nya.",
+          },
+        ],
+        answers: "l4-gloat",
+      },
+      {
+        id: "l4-outro-panic",
+        kind: "perp",
+        channel: { en: "DM — Platform Lead to Legal", id: "DM — Platform Lead ke Legal" },
+        author: { en: "Platform Lead", id: "Platform Lead" },
+        body: [
+          {
+            en: "how is this out, he signed the NDA",
+            id: "kok ini bisa bocor, dia kan udah teken NDA",
+          },
+        ],
+      },
+    ],
+  },
   nodes: [
     {
       id: "nimbus-app",

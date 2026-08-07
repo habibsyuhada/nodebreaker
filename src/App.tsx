@@ -9,6 +9,7 @@ import { NetworkMap } from "./components/NetworkMap";
 import { NetworkMapHint } from "./components/NetworkMapHint";
 import { NotificationToast } from "./components/NotificationToast";
 import { StatusBar } from "./components/StatusBar";
+import { StoryScene } from "./components/StoryScene";
 import { TabBar } from "./components/TabBar";
 import { TRACE_HOT_THRESHOLD, TRACE_TICK_INTERVAL_MS } from "./engine/traceSystem";
 import { LEVELS } from "./levels";
@@ -173,6 +174,8 @@ function BurnedScreen() {
 function SettingsPanel() {
   const resetProgress = useGameStore((s) => s.resetProgress);
   const setScreen = useGameStore((s) => s.setScreen);
+  const lang = useGameStore((s) => s.lang);
+  const setLang = useGameStore((s) => s.setLang);
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
@@ -191,6 +194,33 @@ function SettingsPanel() {
         Your level, clues, and trace save automatically to this device — closing the tab won't
         lose your place.
       </p>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-text-dim">Story scene language (before/after each hack).</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setLang("en")}
+            className={`min-h-[44px] flex-1 rounded border px-4 text-xs font-medium tracking-wide ${
+              lang === "en"
+                ? "border-accent/40 text-accent active:bg-accent-dim"
+                : "border-border text-text-dim active:bg-panel-alt"
+            }`}
+          >
+            English
+          </button>
+          <button
+            type="button"
+            onClick={() => setLang("id")}
+            className={`min-h-[44px] flex-1 rounded border px-4 text-xs font-medium tracking-wide ${
+              lang === "id"
+                ? "border-accent/40 text-accent active:bg-accent-dim"
+                : "border-border text-text-dim active:bg-panel-alt"
+            }`}
+          >
+            Bahasa Indonesia
+          </button>
+        </div>
+      </div>
       <button
         type="button"
         onClick={() => {
@@ -484,6 +514,7 @@ function App() {
             <NetworkMap />
             <LoginPicker />
             <BriefingDialog />
+            <StoryScene />
           </>
         )}
         <div className="scanlines" />
