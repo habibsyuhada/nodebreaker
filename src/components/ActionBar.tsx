@@ -5,6 +5,14 @@ export interface ContextAction {
   disabled?: boolean;
   /** Warning-styled action (e.g. risky/destructive), rendered in the warn accent. */
   danger?: boolean;
+  /**
+   * Marks this as a genuine new-capability unlock (login, post-access recon, pivot, escalation,
+   * workbench, etc.) rather than routine UI chrome (Close/Up/Search, per-selection transforms,
+   * workbench slot toggles). Only `notable` actions get diffed for the "New action unlocked" toast
+   * in App.tsx's ActionNotifier — everything else appears/disappears too often from ordinary
+   * navigation to be worth announcing.
+   */
+  notable?: boolean;
 }
 
 interface ActionBarProps {

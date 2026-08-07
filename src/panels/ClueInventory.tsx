@@ -57,7 +57,7 @@ export function ClueInventory() {
               {CLUE_TYPE_LABEL[clue.type]}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="selectable truncate font-mono text-xs text-text-bright">{clue.value}</p>
+              <p className="truncate font-mono text-xs text-text-bright">{clue.value}</p>
               <p className="mt-0.5 text-[10px] text-text-dim">
                 {cracking ? "cracking..." : `${clue.label} · from ${clue.source}`}
               </p>

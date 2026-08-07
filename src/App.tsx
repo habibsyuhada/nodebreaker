@@ -4,6 +4,7 @@ import { Sprite } from "./art/spriteEngine";
 import { playAmbientPulse, playGlitch } from "./audio/synth";
 import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { BriefingDialog } from "./components/BriefingDialog";
+import { NotificationToast } from "./components/NotificationToast";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
 import { TRACE_HOT_THRESHOLD, TRACE_TICK_INTERVAL_MS } from "./engine/traceSystem";
@@ -14,7 +15,13 @@ import { Terminal } from "./panels/Terminal";
 import { Workbench } from "./panels/Workbench";
 import { LevelSelect } from "./screens/LevelSelect";
 import { MainMenu } from "./screens/MainMenu";
-import { useCurrentNode, useCurrentNodeAccessGranted, useGameStore, useLevelComplete } from "./store/gameStore";
+import {
+  type PanelId,
+  useCurrentNode,
+  useCurrentNodeAccessGranted,
+  useGameStore,
+  useLevelComplete,
+} from "./store/gameStore";
 
 function TraceTicker() {
   const tickTrace = useGameStore((s) => s.tickTrace);
@@ -56,6 +63,42 @@ function TraceTicker() {
       markLevelComplete(level.id);
     }
   }, [levelComplete, level.id, markLevelComplete]);
+
+  return null;
+}
+
+/**
+ * Watches useContextActions()'s cross-panel `notableActions` (login, post-access recon, pivot,
+ * escalation, workbench — deliberately not the routine Close/Up/Search/per-selection-transform
+ * chrome, which appears and disappears too often from ordinary navigation to be worth announcing)
+ * and toasts any that weren't there a moment ago ("New action unlocked: X"). Cross-panel matters:
+ * a fact discovered while reading a file can unlock Login on the Terminal panel, and a player who
+ * isn't currently looking at the Terminal would otherwise never notice. The baseline resets
+ * (silently, no toast) whenever the node/level changes or the mission briefing dismisses, so the
+ * level's starting toolkit never fires as "new".
+ */
+function ActionNotifier({ actions }: { actions: ContextAction[] }) {
+  const pushNotification = useGameStore((s) => s.pushNotification);
+  const briefingActive = useGameStore((s) => s.briefingActive);
+  const currentNodeId = useGameStore((s) => s.currentNodeId);
+  const levelId = useGameStore((s) => s.level.id);
+  const seenIdsRef = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    seenIdsRef.current = null;
+  }, [currentNodeId, levelId, briefingActive]);
+
+  useEffect(() => {
+    if (briefingActive) return;
+    const currentIds = new Set(actions.map((a) => a.id));
+    const seen = seenIdsRef.current;
+    if (seen) {
+      for (const action of actions) {
+        if (!seen.has(action.id)) pushNotification(`New action unlocked: ${action.label}`);
+      }
+    }
+    seenIdsRef.current = currentIds;
+  }, [actions, briefingActive, pushNotification]);
 
   return null;
 }
@@ -170,7 +213,18 @@ function SettingsPanel() {
   );
 }
 
-function useContextActions(): ContextAction[] {
+interface ContextActionsResult {
+  /** Actions for whichever panel is currently active — what ActionBar renders. */
+  actions: ContextAction[];
+  /**
+   * Every `notable` action across all panels, computed regardless of which one is active — so
+   * ActionNotifier can catch e.g. Login becoming available on the Terminal panel while the player
+   * is sitting in Files. Deliberately NOT scoped to activePanel, unlike `actions`.
+   */
+  notableActions: ContextAction[];
+}
+
+function useContextActions(): ContextActionsResult {
   const activePanel = useGameStore((s) => s.activePanel);
   const openFilePath = useGameStore((s) => s.openFilePath);
   const inspectingPath = useGameStore((s) => s.inspectingPath);
@@ -212,9 +266,9 @@ function useContextActions(): ContextAction[] {
   const node = useCurrentNode();
   const levelComplete = useLevelComplete();
 
-  if (levelComplete || burned) return [];
+  if (levelComplete || burned) return { actions: [], notableActions: [] };
 
-  if (activePanel === "terminal") {
+  const terminalActions: ContextAction[] = (() => {
     const actions: ContextAction[] = [{ id: "scan", label: "Scan Ports", onClick: runScan }];
     if (node.systemUsers.length > 0) {
       actions.push({ id: "list-users", label: "List Users", onClick: listUsers });
@@ -223,7 +277,7 @@ function useContextActions(): ContextAction[] {
       actions.push({ id: "check-trace", label: "Check Trace", onClick: checkTrace });
     }
     if (accessGranted && !discovered["logs-deleted"] && !node.logFalsification) {
-      actions.push({ id: "delete-logs", label: "Delete Logs", onClick: deleteLogs, danger: true });
+      actions.push({ id: "delete-logs", label: "Delete Logs", onClick: deleteLogs, danger: true, notable: true });
     }
     if (node.logFalsification && accessGranted && !discovered["logs-falsified"]) {
       const ready = node.logFalsification.requiredFacts.every((f) => discovered[f]);
@@ -233,6 +287,7 @@ function useContextActions(): ContextAction[] {
           label: node.logFalsification.label,
           onClick: falsifyLogs,
           danger: true,
+          notable: true,
         });
       }
     }
@@ -240,27 +295,47 @@ function useContextActions(): ContextAction[] {
       const ready = compare.requiredFacts.every((f) => discovered[f]);
       const done = compare.grantsFact ? discovered[compare.grantsFact] : false;
       if (ready && !done) {
-        actions.push({ id: `compare-${compare.id}`, label: compare.label, onClick: () => compareFiles(compare.id) });
+        actions.push({
+          id: `compare-${compare.id}`,
+          label: compare.label,
+          onClick: () => compareFiles(compare.id),
+          notable: true,
+        });
       }
     }
     for (const pivot of node.pivots ?? []) {
       const ready = pivot.requiredFacts.every((f) => discovered[f]);
       if (ready) {
-        actions.push({ id: `pivot-${pivot.id}`, label: pivot.label, onClick: () => pivotTo(pivot.id) });
+        actions.push({
+          id: `pivot-${pivot.id}`,
+          label: pivot.label,
+          onClick: () => pivotTo(pivot.id),
+          notable: true,
+        });
       }
     }
     for (const esc of node.privilegeEscalations ?? []) {
       const ready = accessGranted && esc.requiredFacts.every((f) => discovered[f]);
       const done = discovered[esc.grantsFact];
       if (ready && !done) {
-        actions.push({ id: `escalate-${esc.id}`, label: esc.label, onClick: () => escalatePrivilege(esc.id) });
+        actions.push({
+          id: `escalate-${esc.id}`,
+          label: esc.label,
+          onClick: () => escalatePrivilege(esc.id),
+          notable: true,
+        });
       }
     }
     for (const bd of node.backdoors ?? []) {
       const ready = accessGranted && bd.requiredFacts.every((f) => discovered[f]);
       const done = discovered[bd.grantsFact];
       if (ready && !done) {
-        actions.push({ id: `backdoor-${bd.id}`, label: bd.label, onClick: () => plantBackdoor(bd.id) });
+        actions.push({
+          id: `backdoor-${bd.id}`,
+          label: bd.label,
+          onClick: () => plantBackdoor(bd.id),
+          notable: true,
+        });
       }
     }
     if (node.adminOnlineThreshold !== undefined) {
@@ -270,19 +345,19 @@ function useContextActions(): ContextAction[] {
     if (node.quickLogin) {
       const loginReady = node.quickLogin.requiredFacts.every((f) => discovered[f]);
       if (loginReady) {
-        actions.push({ id: "login", label: node.quickLogin.label, onClick: attemptQuickLogin });
+        actions.push({ id: "login", label: node.quickLogin.label, onClick: attemptQuickLogin, notable: true });
       }
     } else if (!accessGranted) {
       const hasUsername = clues.some((c) => c.type === "username");
       const hasPassword = clues.some((c) => c.type === "password");
       if (hasUsername && hasPassword) {
-        actions.push({ id: "login", label: "Login", onClick: attemptLogin });
+        actions.push({ id: "login", label: "Login", onClick: attemptLogin, notable: true });
       }
     }
     return actions;
-  }
+  })();
 
-  if (activePanel === "files") {
+  const filesActions: ContextAction[] = (() => {
     if (inspectingPath) {
       return [{ id: "close-inspect", label: "Close", onClick: closeInspect }];
     }
@@ -298,9 +373,9 @@ function useContextActions(): ContextAction[] {
     }
     actions.push({ id: "search", label: "Search", onClick: openSearch });
     return actions;
-  }
+  })();
 
-  if (activePanel === "clues") {
+  const cluesActions: ContextAction[] = (() => {
     if (workbenchOpen) {
       const actions: ContextAction[] = [];
       if (slotA && slotB) {
@@ -333,12 +408,27 @@ function useContextActions(): ContextAction[] {
       actions.push({ id: "leak-check", label: "Check Leak DB", onClick: checkLeakDatabase });
     }
     if (clues.length >= 2) {
-      actions.push({ id: "open-workbench", label: "Workbench", onClick: () => setWorkbenchOpen(true) });
+      actions.push({
+        id: "open-workbench",
+        label: "Workbench",
+        onClick: () => setWorkbenchOpen(true),
+        notable: true,
+      });
     }
     return actions;
-  }
+  })();
 
-  return [];
+  const byPanel: Record<PanelId, ContextAction[]> = {
+    terminal: terminalActions,
+    files: filesActions,
+    clues: cluesActions,
+    settings: [],
+  };
+
+  return {
+    actions: byPanel[activePanel],
+    notableActions: [...terminalActions, ...filesActions, ...cluesActions].filter((a) => a.notable),
+  };
 }
 
 function ActivePanel() {
@@ -364,7 +454,7 @@ function ActivePanel() {
 
 function App() {
   const screen = useGameStore((s) => s.screen);
-  const actions = useContextActions();
+  const { actions, notableActions } = useContextActions();
 
   return (
     <div className="mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden bg-bg text-text">
@@ -374,12 +464,14 @@ function App() {
         {screen === "game" && (
           <>
             <TraceTicker />
+            <ActionNotifier actions={notableActions} />
             <StatusBar />
             <main className="min-h-0 flex-1 overflow-hidden">
               <ActivePanel />
             </main>
             <ActionBar actions={actions} />
             <TabBar />
+            <NotificationToast />
             <BriefingDialog />
           </>
         )}

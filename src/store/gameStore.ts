@@ -31,11 +31,19 @@ export interface CombineFeedback {
   message: string;
 }
 
+export interface Notification {
+  id: string;
+  text: string;
+}
+
 let lineCounter = 0;
 function makeLine(text: string, tone: TerminalTone): TerminalLine {
   lineCounter += 1;
   return { id: `line-${lineCounter}`, text, tone };
 }
+
+const NOTIFICATION_DURATION_MS = 3200;
+let notifCounter = 0;
 
 function computeLevelComplete(
   level: LevelDef,
@@ -63,6 +71,15 @@ interface GameState {
    */
   briefingActive: boolean;
   dismissBriefing: () => void;
+
+  /**
+   * Short-lived toast queue — surfaces things easy to miss while looking at a different panel:
+   * a clue getting saved, a new action appearing in the ActionBar. Purely transient (not
+   * persisted); each entry removes itself after NOTIFICATION_DURATION_MS.
+   */
+  notifications: Notification[];
+  pushNotification: (text: string) => void;
+  dismissNotification: (id: string) => void;
 
   activePanel: PanelId;
   setActivePanel: (panel: PanelId) => void;
@@ -187,6 +204,18 @@ export const useGameStore = create<GameState>()(
   briefingActive: true,
   dismissBriefing: () => set({ briefingActive: false }),
 
+  notifications: [],
+  pushNotification: (text) => {
+    notifCounter += 1;
+    const id = `notif-${notifCounter}`;
+    set((state) => ({ notifications: [...state.notifications, { id, text }] }));
+    window.setTimeout(() => {
+      set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) }));
+    }, NOTIFICATION_DURATION_MS);
+  },
+  dismissNotification: (id) =>
+    set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) })),
+
   activePanel: "terminal",
   setActivePanel: (panel) => set({ activePanel: panel }),
 
@@ -246,30 +275,22 @@ export const useGameStore = create<GameState>()(
     const entry = findEntry(node.root, path);
     if (!entry || entry.kind !== "file") return;
 
-    const filename = path[path.length - 1];
-    const lines: TerminalLine[] = [makeLine(`$ cat ${filename}`, "input")];
+    // File content is shown entirely within the Files panel's own view (see FileBrowser.tsx) —
+    // deliberately not echoed into the Terminal too, so a read doesn't leave a duplicate copy in
+    // the scrollback.
     const locked = Boolean(entry.requiresFact && !discovered[entry.requiresFact]);
-    if (locked) {
-      lines.push(makeLine("PERMISSION DENIED — administrator privileges required.", "warn"));
-    } else if (entry.readable === false) {
-      lines.push(makeLine("[binary data — not human-readable]", "warn"));
-    } else {
-      lines.push(...(entry.content ?? "").split("\n").map((l) => makeLine(l, "output")));
-    }
-
     const nextDiscovered =
       !locked && entry.grantsFact && !discovered[entry.grantsFact]
         ? { ...discovered, [entry.grantsFact]: true as const }
         : discovered;
 
-    set((state) => ({
+    set({
       openFilePath: path,
       inspectingPath: null,
       currentPath: path.slice(0, -1),
       searchOpen: false,
-      terminalLines: [...state.terminalLines, ...lines],
       discovered: nextDiscovered,
-    }));
+    });
   },
 
   closeFile: () => set({ openFilePath: null }),
@@ -562,6 +583,7 @@ export const useGameStore = create<GameState>()(
     if (!level) return;
     set({
       briefingActive: true,
+      notifications: [],
       level,
       currentNodeId: level.entryNodeId,
       currentPath: [],
@@ -590,7 +612,10 @@ export const useGameStore = create<GameState>()(
   saveClue: (input) => {
     const { clues } = get();
     const result = addClue(clues, input);
-    if (result.added) set({ clues: result.clues });
+    if (result.added) {
+      set({ clues: result.clues });
+      get().pushNotification(`Clue saved: ${input.label}`);
+    }
     return result.added;
   },
 

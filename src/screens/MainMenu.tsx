@@ -1,6 +1,37 @@
+import { useEffect, useState } from "react";
 import { BASE_PALETTE, LOCK_SPRITE } from "../art/sprites";
 import { Sprite } from "../art/spriteEngine";
 import { useGameStore } from "../store/gameStore";
+
+/**
+ * The web platform has no real "quit the app" — window.close() only works on a tab the page
+ * itself opened, so on an ordinary tab it silently no-ops. Attempt it anyway (covers PWA/webview
+ * contexts where it does work), but always land on a themed screen with a way back in so the
+ * player is never stuck looking at a dead button.
+ */
+function ExitScreen({ onCancel }: { onCancel: () => void }) {
+  useEffect(() => {
+    window.close();
+  }, []);
+
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+      <p className="text-sm font-semibold tracking-widest text-warn crt-flicker">
+        CONNECTION TERMINATED
+      </p>
+      <p className="max-w-xs text-xs text-text-dim">
+        Session closed. You can close this tab now — or jump back in if you're not done yet.
+      </p>
+      <button
+        type="button"
+        onClick={onCancel}
+        className="mt-2 min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
+      >
+        Back In
+      </button>
+    </div>
+  );
+}
 
 /** First thing the app shows on every boot, regardless of saved progress. */
 export function MainMenu() {
@@ -10,6 +41,7 @@ export function MainMenu() {
   const traceLevel = useGameStore((s) => s.traceLevel);
   const accessGrantedCount = useGameStore((s) => Object.keys(s.accessGrantedNodes).length);
   const completedCount = useGameStore((s) => Object.keys(s.completedLevels).length);
+  const [exited, setExited] = useState(false);
 
   const hasProgress =
     clueCount > 0 ||
@@ -17,6 +49,8 @@ export function MainMenu() {
     traceLevel > 0 ||
     accessGrantedCount > 0 ||
     completedCount > 0;
+
+  if (exited) return <ExitScreen onCancel={() => setExited(false)} />;
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 p-6 text-center">
@@ -45,6 +79,13 @@ export function MainMenu() {
           }`}
         >
           Select Level
+        </button>
+        <button
+          type="button"
+          onClick={() => setExited(true)}
+          className="min-h-[44px] rounded border border-warn/40 px-4 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"
+        >
+          Exit
         </button>
       </div>
     </div>

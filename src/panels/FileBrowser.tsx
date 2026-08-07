@@ -192,7 +192,7 @@ export function FileBrowser() {
           ) : entry?.readable === false ? (
             <p className="text-xs text-warn">[binary data — not human-readable]</p>
           ) : (
-            <pre className="selectable whitespace-pre-wrap font-mono text-xs text-text">
+            <pre className="whitespace-pre-wrap font-mono text-xs text-text">
               <HoldableText content={entry?.content ?? ""} source={filename} />
             </pre>
           )}

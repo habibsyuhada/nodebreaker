@@ -36,18 +36,14 @@ body {
   color: var(--color-text);
   font-family: var(--font-mono);
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
   user-select: none;
 }
 
-/* allow selection inside text meant to be tap-held / read */
-.selectable {
-  user-select: text;
-}
-
 /*
- * Holdable clue spans must win over an ancestor .selectable wrapper — otherwise a long-press
- * inside a readable file body triggers the OS text-selection popup (Copy/Select all/Share)
- * instead of the custom tap-hold-to-save gesture.
+ * Redundant with body's user-select: none, but touch-action: none must stay scoped to holdable
+ * spans specifically (not global — that would break scrolling everywhere) so this keeps its own
+ * class rather than relying purely on inheritance.
  */
 .holdable {
   -webkit-touch-callout: none;

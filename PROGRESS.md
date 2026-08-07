@@ -49,14 +49,17 @@ src/
                   ClueInventory.tsx, Workbench.tsx
   components/     StatusBar.tsx, ActionBar.tsx, TabBar.tsx, HoldableText.tsx
                   (tap-hold-to-save-clue span, used by Terminal + FileBrowser),
-                  BriefingDialog.tsx (per-level mission overlay, gates trace)
+                  BriefingDialog.tsx (per-level mission overlay, gates trace),
+                  NotificationToast.tsx (self-dismissing toast stack for clue
+                  saves + newly-unlocked actions)
   screens/        MainMenu.tsx, LevelSelect.tsx — top-level screens shown
                   before the game view (App.tsx's `screen` store field)
   store/          gameStore.ts — single Zustand store, all game state,
                   wrapped in zustand's persist middleware (localStorage)
 App.tsx           screen switcher (menu/levels/game), panel switcher,
                   contextual ActionBar logic, breach/burned screens,
-                  TraceTicker (passive trace interval)
+                  TraceTicker (passive trace interval), ActionNotifier
+                  (diffs notable actions across panels for the toast)
 public/icons/     PWA icon PNGs (192/512 any + maskable, apple-touch-icon),
                   rasterized from the existing LOCK_SPRITE — not hand-drawn
                   separately, see stage 10 notes
@@ -443,6 +446,63 @@ vite.config.ts    VitePWA plugin: manifest, service worker (generateSW),
   `localStorage` with levels 1-2 marked complete unlocks level 3 in Level
   Select, and the app still boots to the menu first even with a save
   present.
+
+### Stage 12 mechanics added — second round of mobile playtest feedback
+
+- **Text is no longer selectable anywhere**: stage 11's `.holdable` fix
+  scoped `user-select: none` to just the clue spans, leaving surrounding
+  prose selectable via `.selectable` on the containing `<pre>`/`<p>`.
+  Playtesting showed the player didn't want selection at all (only
+  tap-hold), so `.selectable` is gone entirely (`FileBrowser.tsx`'s file
+  body, `ClueInventory.tsx`'s clue-value line) and `body` in `index.css`
+  now also sets `-webkit-touch-callout: none` globally — safe globally
+  (unlike `touch-action: none`, which stays scoped to `.holdable` since
+  going global there would break scrolling everywhere).
+- **File reads no longer echo into the Terminal**: `openFile` in
+  `gameStore.ts` used to push a `$ cat <file>` line plus the
+  content/permission-denied/binary-placeholder lines into `terminalLines`,
+  duplicating what the Files panel's own `openFilePath` view already
+  renders. Removed the terminal-line-pushing half of the action entirely —
+  `discovered`/`grantsFact` bookkeeping is untouched, so no game logic
+  changed, just where the content is shown (Files panel only, per the ask).
+- **Exit button on the Main Menu** (`MainMenu.tsx`): the web platform has no
+  real "quit" — `window.close()` only works on a tab the page itself
+  opened, so on an ordinary tab it silently no-ops. Exit attempts it anyway
+  (covers PWA/webview contexts where it does work) but always lands on a
+  themed "CONNECTION TERMINATED" screen with a "Back In" button, so the
+  player is never stuck looking at a dead screen on an ordinary browser tab.
+- **Toast notifications for clue saves and newly-unlocked actions**
+  (`Notification`/`notifications`/`pushNotification`/`dismissNotification`
+  in `gameStore.ts`, `NotificationToast.tsx`): playtest feedback was that
+  new ActionBar tools felt like they came out of nowhere ("ngawang") —
+  reasonable, since this is effectively a self-teaching tutorial with no
+  popups by design (see the onboarding rule at the bottom of this file).
+  `saveClue` now pushes `"Clue saved: <label>"` on every successful save
+  (skips duplicates, same as its existing haptic/sound feedback). New
+  ActionBar actions are trickier: `useContextActions()` returns a different
+  action list per `activePanel`, so a diff against just the active panel's
+  list would miss e.g. Login appearing on the Terminal panel while the
+  player is reading a file in Files. Fixed by restructuring
+  `useContextActions()` to always compute all three panels' action lists
+  every render (previously each panel branch returned early) and expose
+  `{ actions, notableActions }` — `actions` is still the active-panel-only
+  list ActionBar renders, `notableActions` is every `notable`-flagged
+  action across all three panels, independent of which one is active.
+  `notable: true` is opt-in per action (login, delete/falsify logs,
+  compare/pivot/escalate/backdoor, open-workbench) — routine UI chrome
+  (Close/Up/Search/close-workbench/per-selection Decode-Crack-Leak-check)
+  deliberately isn't flagged, since those appear and disappear constantly
+  from ordinary navigation and would spam the toast queue if diffed the
+  same way. First playtest of the diff logic caught exactly this: the
+  Files panel's contextual "Close" button got announced as "New action
+  unlocked: Close" the moment a file was opened, which is what led to the
+  `notable`-flag design instead of diffing the raw action list.
+  `ActionNotifier` (new component in `App.tsx`, mounted alongside
+  `TraceTicker`) does the actual diffing — baseline resets silently
+  (no toast) on node/level change or briefing dismissal, so a level's
+  starting toolkit never fires as "new". Toast stack renders at `top-14`
+  (clears the `h-11` StatusBar) via `NotificationToast.tsx`, each entry
+  self-dismissing after 3.2s or on tap.
 
 ## What's next
 
