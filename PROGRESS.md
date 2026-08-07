@@ -598,6 +598,83 @@ vite.config.ts    VitePWA plugin: manifest, service worker (generateSW),
   bug (the old matching logic was already node-scoped and correct;
   players just had no way to see or choose what it was trying).
 
+### Stage 15 (planned) — Victim scenes before/after each hack
+
+**Status: planned, not yet implemented.** Full plan lives at
+`/root/.claude/plans/nah-aku-pengen-ada-dazzling-clover.md` (agent-local,
+not in the repo) — this entry is the durable summary so the intent survives
+even if that file doesn't.
+
+**Problem:** the game is mechanically complete but emotionally flat.
+`BriefingDialog` opens a level with dry technical copy ("Connection
+established. Target: unsecured router...") and `BreachedScreen`
+(`App.tsx:109`) closes it with "NODE BREACHED — next target is online
+whenever you're ready." No victim is ever shown being hurt, so there's
+nothing pulling the player toward wanting to hack, and no payoff when they
+do.
+
+**Design:** each level gets a **before-hack scene** (intercepted
+comms — group chat, support ticket, deleted review, internal memo) that
+escalates through 4 fixed beats — context → a *named, specific, powerless*
+person harmed → a polite request denied by process → the perpetrator
+gloating in a channel they think is private, ending on an explicit
+untouchability line ("what exactly are they going to do about it?"). And an
+**after-hack scene** that mirrors it card-for-card: each outro card
+`answers` a specific intro card, rendering that card's line
+struck-through above the new one, ending on the perpetrator's panic in as
+few words as possible.
+
+All 8 levels get a victim: neighbor router-hogging (petty, teaches the
+grammar) → storefront chargeback stonewalling → an accounting junior framed
+as the fall guy → an engineer NDA'd for whistleblowing → a health insurer's
+deny-first quota → a driver fired over a doctored timesheet (the in-fiction
+reason Level 6's honeypot folder exists) → a family's land deed "lost" to a
+developer → and Level 8 (Halcyon Dynamics) revealed as the entity behind
+all of the above, with `correlate --sources hr,finance` — already Level 8's
+literal win condition — doubling as the payoff mechanic. One callback card
+per prior victim, Mrs. Adisa's (Level 1) last and smallest for the tonal
+landing.
+
+**Scope decisions locked with the user:** content ships in English with a
+real i18n layer prepared (`src/i18n/index.ts`, `LocalizedText` type, `t()`
+helper — minimal, dependency-free; existing UI strings stay hardcoded
+English for now, migrating them is explicitly out of scope for this stage),
+feed-of-cards visual format with new pixel-art avatar sprites (not
+cinematic narration cards), all 8 levels done in one pass, and the
+connected-antagonist structure above.
+
+**Planned wiring** (follows this project's established
+types → store action → `App.tsx` surfacing pattern, see the note at the
+bottom of "Known gaps" above):
+- `SceneCard`/`SceneDef` types in `levels/types.ts`; `LevelDef` gains
+  optional `intro?: SceneDef` / `outro?: SceneDef` so scene-less levels
+  keep working unchanged.
+- Store gains `lang` (persisted, EN/ID toggle in Settings), `introActive`/
+  `dismissIntro` (set alongside `briefingActive` in `loadLevel`), and
+  `outroActive`/`dismissOutro` (set in `markLevelComplete`, which already
+  fires exactly once per completion). New fields must be added to all
+  three of `PersistedState`, `partialize`, and `merge` — this store
+  hand-writes persistence in three places and it's the easiest thing to
+  miss.
+- New `StoryScene.tsx` component, one for both scenes (`tone: "intro" |
+  "outro"`), full-bleed overlay above `BriefingDialog`'s z-layer so the
+  order is intro → briefing → play → outro → `BreachedScreen`. Must render
+  as a sibling of `<main>` in `App.tsx`, not inside `ActivePanel` (unlike
+  `BreachedScreen`, which only covers the panel content today) — the outro
+  needs to cover StatusBar/ActionBar/TabBar too.
+- Four new sprites in `art/sprites.ts` (person, suit, alert, megaphone)
+  using the existing `SpriteGrid`/`BASE_PALETTE` format — no new palette
+  needed, tone comes from which of the existing `a`/`w` slots each grid
+  uses.
+
+**Verification plan:** oxlint + `tsc -b --noEmit` clean; manual playtest at
+mobile width confirming trace stays frozen during the intro (checked
+specifically on Level 3, the first trace-enabled level), outro covers the
+full chrome, struck-through mirror lines render correctly, Level 7's
+`requiresFacts: ["logs-falsified"]` outro card gates correctly, reload
+mid-scene resumes at the same gate, language toggle switches scene text,
+and `npm run build` still succeeds.
+
 ## What's next
 
 All 10 stages from the original build order are done — the game is
