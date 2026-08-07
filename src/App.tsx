@@ -4,6 +4,7 @@ import { Sprite } from "./art/spriteEngine";
 import { playAmbientPulse, playGlitch } from "./audio/synth";
 import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { BriefingDialog } from "./components/BriefingDialog";
+import { NetworkMap } from "./components/NetworkMap";
 import { NotificationToast } from "./components/NotificationToast";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
@@ -472,6 +473,7 @@ function App() {
             <ActionBar actions={actions} />
             <TabBar />
             <NotificationToast />
+            <NetworkMap />
             <BriefingDialog />
           </>
         )}

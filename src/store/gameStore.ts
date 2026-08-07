@@ -55,6 +55,12 @@ function computeLevelComplete(
   return required.every((f) => discovered[f]);
 }
 
+/** Node context to stamp onto a newly-created clue — whichever node was current when it was made. */
+function nodeTag(level: LevelDef, currentNodeId: string): { id: string; label: string } {
+  const node = level.nodes.find((n) => n.id === currentNodeId);
+  return { id: currentNodeId, label: node?.orgName ?? currentNodeId };
+}
+
 interface GameState {
   /** Which top-level screen is showing — always boots to "menu" regardless of saved progress. */
   screen: ScreenId;
@@ -86,6 +92,12 @@ interface GameState {
 
   level: LevelDef;
   currentNodeId: string;
+
+  /** Every node id the player has been on this level (via loadLevel's entry node or pivotTo). Drives the Network Map's node list. */
+  visitedNodeIds: Record<string, true>;
+  /** Whether the Network Map overlay is open — transient UI state, not persisted. */
+  networkMapOpen: boolean;
+  setNetworkMapOpen: (open: boolean) => void;
 
   currentPath: string[];
   openFilePath: string[] | null;
@@ -187,6 +199,7 @@ interface PersistedState {
   clues: Clue[];
   completedLevels: Record<string, true>;
   briefingActive: boolean;
+  visitedNodeIds: Record<string, true>;
 }
 
 const SAVE_KEY = "nodebreaker-save";
@@ -221,6 +234,9 @@ export const useGameStore = create<GameState>()(
 
   level: LEVELS[0],
   currentNodeId: LEVELS[0].entryNodeId,
+  visitedNodeIds: { [LEVELS[0].entryNodeId]: true },
+  networkMapOpen: false,
+  setNetworkMapOpen: (open) => set({ networkMapOpen: open }),
   currentPath: [],
   openFilePath: null,
   inspectingPath: null,
@@ -424,6 +440,8 @@ export const useGameStore = create<GameState>()(
 
     set((state) => ({
       currentNodeId: target.id,
+      visitedNodeIds: { ...state.visitedNodeIds, [target.id]: true },
+      networkMapOpen: false,
       currentPath: [],
       openFilePath: null,
       inspectingPath: null,
@@ -586,6 +604,8 @@ export const useGameStore = create<GameState>()(
       notifications: [],
       level,
       currentNodeId: level.entryNodeId,
+      visitedNodeIds: { [level.entryNodeId]: true },
+      networkMapOpen: false,
       currentPath: [],
       openFilePath: null,
       inspectingPath: null,
@@ -610,8 +630,8 @@ export const useGameStore = create<GameState>()(
   },
 
   saveClue: (input) => {
-    const { clues } = get();
-    const result = addClue(clues, input);
+    const { clues, level, currentNodeId } = get();
+    const result = addClue(clues, input, nodeTag(level, currentNodeId));
     if (result.added) {
       set({ clues: result.clues });
       get().pushNotification(`Clue saved: ${input.label}`);
@@ -633,16 +653,15 @@ export const useGameStore = create<GameState>()(
   clearSlots: () => set({ slotA: null, slotB: null }),
 
   combineSlots: () => {
-    const { slotA, slotB, clues } = get();
+    const { slotA, slotB, clues, level, currentNodeId } = get();
     if (!slotA || !slotB) return;
     const result = tryCombine(slotA, slotB);
     if (result) {
-      const added = addClue(clues, {
-        type: result.type,
-        value: result.value,
-        label: result.label,
-        source: "workbench",
-      });
+      const added = addClue(
+        clues,
+        { type: result.type, value: result.value, label: result.label, source: "workbench" },
+        nodeTag(level, currentNodeId),
+      );
       set({
         clues: added.clues,
         slotA: null,
@@ -664,17 +683,16 @@ export const useGameStore = create<GameState>()(
     set((state) => ({ selectedClueId: state.selectedClueId === id ? null : id })),
 
   decodeClue: () => {
-    const { selectedClueId, clues } = get();
+    const { selectedClueId, clues, level, currentNodeId } = get();
     const clue = clues.find((c) => c.id === selectedClueId);
     if (!clue) return;
     const result = tryDecode(clue);
     if (result) {
-      const added = addClue(clues, {
-        type: result.type,
-        value: result.value,
-        label: result.label,
-        source: "decode",
-      });
+      const added = addClue(
+        clues,
+        { type: result.type, value: result.value, label: result.label, source: "decode" },
+        nodeTag(level, currentNodeId),
+      );
       set({
         clues: added.clues,
         selectedClueId: null,
@@ -689,17 +707,16 @@ export const useGameStore = create<GameState>()(
   },
 
   checkLeakDatabase: () => {
-    const { selectedClueId, clues } = get();
+    const { selectedClueId, clues, level, currentNodeId } = get();
     const clue = clues.find((c) => c.id === selectedClueId);
     if (!clue) return;
     const result = tryLeakCheck(clue);
     if (result) {
-      const added = addClue(clues, {
-        type: result.type,
-        value: result.value,
-        label: result.label,
-        source: "leak database",
-      });
+      const added = addClue(
+        clues,
+        { type: result.type, value: result.value, label: result.label, source: "leak database" },
+        nodeTag(level, currentNodeId),
+      );
       set({
         clues: added.clues,
         selectedClueId: null,
@@ -732,12 +749,12 @@ export const useGameStore = create<GameState>()(
     window.setTimeout(() => {
       if (get().crackingClueId !== clue.id) return;
       if (result) {
-        const added = addClue(get().clues, {
-          type: result.type,
-          value: result.value,
-          label: result.label,
-          source: "hash cracker",
-        });
+        const { clues: liveClues, level: liveLevel, currentNodeId: liveNodeId } = get();
+        const added = addClue(
+          liveClues,
+          { type: result.type, value: result.value, label: result.label, source: "hash cracker" },
+          nodeTag(liveLevel, liveNodeId),
+        );
         set((state) => ({
           clues: added.clues,
           crackingClueId: null,
@@ -775,6 +792,7 @@ export const useGameStore = create<GameState>()(
     clues: state.clues,
     completedLevels: state.completedLevels,
     briefingActive: state.briefingActive,
+    visitedNodeIds: state.visitedNodeIds,
   }),
   merge: (persisted, current) => {
     const p = persisted as Partial<PersistedState> | undefined;
@@ -793,6 +811,7 @@ export const useGameStore = create<GameState>()(
       clues,
       completedLevels: p.completedLevels ?? {},
       briefingActive: p.briefingActive ?? true,
+      visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
       terminalLines: briefingLines(level),
       terminalRevealCount: 0,
     };
