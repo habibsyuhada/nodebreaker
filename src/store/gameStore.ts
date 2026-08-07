@@ -16,6 +16,8 @@ import type { LevelDef, LevelNodeDef } from "../levels/types";
 
 export type PanelId = "terminal" | "files" | "clues" | "settings";
 
+export type ScreenId = "menu" | "levels" | "game";
+
 export type TerminalTone = "input" | "output" | "success" | "warn" | "system";
 
 export interface TerminalLine {
@@ -46,6 +48,22 @@ function computeLevelComplete(
 }
 
 interface GameState {
+  /** Which top-level screen is showing — always boots to "menu" regardless of saved progress. */
+  screen: ScreenId;
+  setScreen: (screen: ScreenId) => void;
+
+  /** Level ids that have been completed at least once — drives Level Select's lock/checkmark state. */
+  completedLevels: Record<string, true>;
+  markLevelComplete: (levelId: string) => void;
+
+  /**
+   * True from the moment a level (re)loads until the player dismisses its mission-briefing
+   * dialog. While true, TraceTicker doesn't tick and a blocking overlay covers the game screen —
+   * the player decides when the clock starts, not the level load.
+   */
+  briefingActive: boolean;
+  dismissBriefing: () => void;
+
   activePanel: PanelId;
   setActivePanel: (panel: PanelId) => void;
 
@@ -134,10 +152,13 @@ function briefingLines(level: LevelDef): TerminalLine[] {
 }
 
 /**
- * What survives a reload: which level/node you're on and what you've earned there. Deliberately
- * excludes transient navigation/UI state (active panel, file/search/workbench state, terminal
- * scrollback and its reveal animation, in-flight selection/crack/transform feedback) — those
- * reset fresh on load rather than trying to resume mid-interaction.
+ * What survives a reload: which level/node you're on and what you've earned there, plus which
+ * levels have ever been completed (Level Select's lock/checkmark state) and whether the current
+ * level's mission-briefing dialog has already been dismissed. Deliberately excludes transient
+ * navigation/UI state (which top-level screen is showing, active panel, file/search/workbench
+ * state, terminal scrollback and its reveal animation, in-flight selection/crack/transform
+ * feedback) — those reset fresh on load rather than trying to resume mid-interaction. `screen`
+ * in particular always boots to "menu" on purpose, even with a save present.
  */
 interface PersistedState {
   levelIndex: number;
@@ -147,6 +168,8 @@ interface PersistedState {
   traceLevel: number;
   burned: boolean;
   clues: Clue[];
+  completedLevels: Record<string, true>;
+  briefingActive: boolean;
 }
 
 const SAVE_KEY = "nodebreaker-save";
@@ -154,7 +177,17 @@ const SAVE_KEY = "nodebreaker-save";
 export const useGameStore = create<GameState>()(
   persist(
     (set, get) => ({
-      activePanel: "terminal",
+      screen: "menu",
+  setScreen: (screen) => set({ screen }),
+
+  completedLevels: {},
+  markLevelComplete: (levelId) =>
+    set((state) => ({ completedLevels: { ...state.completedLevels, [levelId]: true } })),
+
+  briefingActive: true,
+  dismissBriefing: () => set({ briefingActive: false }),
+
+  activePanel: "terminal",
   setActivePanel: (panel) => set({ activePanel: panel }),
 
   level: LEVELS[0],
@@ -528,6 +561,7 @@ export const useGameStore = create<GameState>()(
     const level = LEVELS[index];
     if (!level) return;
     set({
+      briefingActive: true,
       level,
       currentNodeId: level.entryNodeId,
       currentPath: [],
@@ -698,6 +732,7 @@ export const useGameStore = create<GameState>()(
 
   resetProgress: () => {
     useGameStore.persist.clearStorage();
+    set({ completedLevels: {} });
     get().loadLevel(0);
   },
 }),
@@ -713,6 +748,8 @@ export const useGameStore = create<GameState>()(
     traceLevel: state.traceLevel,
     burned: state.burned,
     clues: state.clues,
+    completedLevels: state.completedLevels,
+    briefingActive: state.briefingActive,
   }),
   merge: (persisted, current) => {
     const p = persisted as Partial<PersistedState> | undefined;
@@ -729,6 +766,8 @@ export const useGameStore = create<GameState>()(
       traceLevel: p.traceLevel ?? 0,
       burned: p.burned ?? false,
       clues,
+      completedLevels: p.completedLevels ?? {},
+      briefingActive: p.briefingActive ?? true,
       terminalLines: briefingLines(level),
       terminalRevealCount: 0,
     };

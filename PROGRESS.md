@@ -48,11 +48,15 @@ src/
   panels/         Terminal.tsx, FileBrowser.tsx (+ built-in search view),
                   ClueInventory.tsx, Workbench.tsx
   components/     StatusBar.tsx, ActionBar.tsx, TabBar.tsx, HoldableText.tsx
-                  (tap-hold-to-save-clue span, used by Terminal + FileBrowser)
+                  (tap-hold-to-save-clue span, used by Terminal + FileBrowser),
+                  BriefingDialog.tsx (per-level mission overlay, gates trace)
+  screens/        MainMenu.tsx, LevelSelect.tsx — top-level screens shown
+                  before the game view (App.tsx's `screen` store field)
   store/          gameStore.ts — single Zustand store, all game state,
                   wrapped in zustand's persist middleware (localStorage)
-App.tsx           panel switcher, contextual ActionBar logic, breach/burned
-                  screens, TraceTicker (passive trace interval)
+App.tsx           screen switcher (menu/levels/game), panel switcher,
+                  contextual ActionBar logic, breach/burned screens,
+                  TraceTicker (passive trace interval)
 public/icons/     PWA icon PNGs (192/512 any + maskable, apple-touch-icon),
                   rasterized from the existing LOCK_SPRITE — not hand-drawn
                   separately, see stage 10 notes
@@ -389,6 +393,56 @@ vite.config.ts    VitePWA plugin: manifest, service worker (generateSW),
   keeps the mechanic data-driven and low-complexity; the in-fiction "why"
   is explained by a discoverable log-format reference file instead of a
   punishing trap.
+
+### Stage 11 mechanics added — mobile playtest feedback
+
+- **Tap-hold-to-save no longer opens the OS text-selection popup**: on real
+  Android/iOS, long-pressing a `[[type:value|label]]` span inside a readable
+  file body (rendered under FileBrowser's `.selectable` `<pre>`, which sets
+  `user-select: text` so plain prose stays copyable) triggered the native
+  Copy/Select All/Share callout instead of — or racing — the custom
+  550ms-hold clue-save gesture. Fixed with a new `.holdable` CSS class
+  (`src/index.css`) that pins `user-select: none`, `touch-action: none`, and
+  `-webkit-touch-callout: none` on the span itself, overriding the
+  `.selectable` ancestor; also added `onContextMenu={(e) =>
+  e.preventDefault()}` as a cross-browser belt-and-braces. Applied to both
+  `HoldSpan` (`HoldableText.tsx`) and `FileBrowser.tsx`'s `EntryRow` (which
+  already had `touch-none select-none` via Tailwind but not the
+  iOS-specific `-webkit-touch-callout` override). Verified with a Playwright
+  touch-viewport test: after a synthetic long-press, `window.getSelection()`
+  stays empty and the clue still saves.
+- **Per-level mission briefing dialog gates the trace clock**
+  (`briefingActive` in `gameStore.ts`, persisted; `dismissBriefing` action;
+  `BriefingDialog.tsx`): previously `TraceTicker` started ticking the moment
+  a level's node mounted, so a trace-enabled level's clock was already
+  running before the player had read the briefing or looked around.
+  `loadLevel` now sets `briefingActive: true`; a full-screen opaque overlay
+  (level title, target IP/org, briefing lines, a "Start Hack" button) covers
+  the whole game screen — StatusBar/panel/ActionBar/TabBar included — until
+  dismissed, blocking both interaction and the trace interval
+  (`TraceTicker`'s effect now also checks `!briefingActive`). Verified: with
+  a trace-enabled level loaded and the briefing left up past a full 5s tick
+  interval, trace stays at 0%; tapping Start Hack and waiting the same
+  interval moves it to 2% as expected.
+- **Main Menu + Level Select screens** (`src/screens/MainMenu.tsx`,
+  `LevelSelect.tsx`; new `screen: "menu" | "levels" | "game"` store field,
+  deliberately **not** persisted): the app now always boots to a Main Menu
+  regardless of saved progress, instead of dropping straight into the
+  Terminal — matches the ask that opening the game shouldn't auto-resume a
+  session. Main Menu shows "Continue" (only when there's actual save
+  progress — clues, discovered facts, trace, node access, or a completed
+  level) plus "Select Level". Level Select lists all 8 levels with
+  lock/DONE state driven by a new persisted `completedLevels: Record<string,
+  true>` map; a level unlocks once the previous level's id is in
+  `completedLevels`, index 0 is always unlocked. Completion is recorded by
+  `TraceTicker` (already watching `useLevelComplete()` for the hot-trace
+  alert) via a second one-shot-per-level ref, calling the new
+  `markLevelComplete` action. Settings gained a "Back to Main Menu" button
+  (pure navigation — doesn't touch save state, so Continue still resumes
+  exactly where you left off). Verified end-to-end with Playwright: seeding
+  `localStorage` with levels 1-2 marked complete unlocks level 3 in Level
+  Select, and the app still boots to the menu first even with a save
+  present.
 
 ## What's next
 

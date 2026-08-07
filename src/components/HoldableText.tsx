@@ -51,7 +51,8 @@ function HoldSpan({ type, value, label, source }: HoldSpanProps) {
       onPointerUp={cancel}
       onPointerLeave={cancel}
       onPointerCancel={cancel}
-      className={`relative inline-block rounded px-0.5 underline decoration-dotted underline-offset-2 ${
+      onContextMenu={(e) => e.preventDefault()}
+      className={`holdable relative inline-block rounded px-0.5 underline decoration-dotted underline-offset-2 ${
         feedback === "saved"
           ? "bg-accent-dim text-accent"
           : feedback === "duplicate"

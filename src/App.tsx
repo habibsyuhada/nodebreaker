@@ -3,6 +3,7 @@ import { BASE_PALETTE, LOCK_SPRITE } from "./art/sprites";
 import { Sprite } from "./art/spriteEngine";
 import { playAmbientPulse, playGlitch } from "./audio/synth";
 import { ActionBar, type ContextAction } from "./components/ActionBar";
+import { BriefingDialog } from "./components/BriefingDialog";
 import { StatusBar } from "./components/StatusBar";
 import { TabBar } from "./components/TabBar";
 import { TRACE_HOT_THRESHOLD, TRACE_TICK_INTERVAL_MS } from "./engine/traceSystem";
@@ -11,6 +12,8 @@ import { ClueInventory } from "./panels/ClueInventory";
 import { FileBrowser } from "./panels/FileBrowser";
 import { Terminal } from "./panels/Terminal";
 import { Workbench } from "./panels/Workbench";
+import { LevelSelect } from "./screens/LevelSelect";
+import { MainMenu } from "./screens/MainMenu";
 import { useCurrentNode, useCurrentNodeAccessGranted, useGameStore, useLevelComplete } from "./store/gameStore";
 
 function TraceTicker() {
@@ -18,22 +21,26 @@ function TraceTicker() {
   const traceLevel = useGameStore((s) => s.traceLevel);
   const traceEnabled = useCurrentNode().traceEnabled;
   const burned = useGameStore((s) => s.burned);
-  const levelId = useGameStore((s) => s.level.id);
+  const level = useGameStore((s) => s.level);
+  const briefingActive = useGameStore((s) => s.briefingActive);
+  const markLevelComplete = useGameStore((s) => s.markLevelComplete);
   const levelComplete = useLevelComplete();
   const hotAlertedRef = useRef(false);
+  const completedRef = useRef(false);
 
   useEffect(() => {
     hotAlertedRef.current = false;
-  }, [levelId]);
+    completedRef.current = false;
+  }, [level.id]);
 
   useEffect(() => {
-    if (!traceEnabled || burned || levelComplete) return;
+    if (!traceEnabled || burned || levelComplete || briefingActive) return;
     const id = window.setInterval(() => {
       tickTrace();
       if (traceLevel > 0) playAmbientPulse();
     }, TRACE_TICK_INTERVAL_MS);
     return () => window.clearInterval(id);
-  }, [traceEnabled, burned, levelComplete, tickTrace, traceLevel]);
+  }, [traceEnabled, burned, levelComplete, briefingActive, tickTrace, traceLevel]);
 
   useEffect(() => {
     if (traceLevel >= TRACE_HOT_THRESHOLD && !hotAlertedRef.current) {
@@ -42,6 +49,13 @@ function TraceTicker() {
       playGlitch();
     }
   }, [traceLevel]);
+
+  useEffect(() => {
+    if (levelComplete && !completedRef.current) {
+      completedRef.current = true;
+      markLevelComplete(level.id);
+    }
+  }, [levelComplete, level.id, markLevelComplete]);
 
   return null;
 }
@@ -112,6 +126,7 @@ function BurnedScreen() {
 
 function SettingsPanel() {
   const resetProgress = useGameStore((s) => s.resetProgress);
+  const setScreen = useGameStore((s) => s.setScreen);
   const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
@@ -143,6 +158,13 @@ function SettingsPanel() {
         className="min-h-[44px] rounded border border-warn/40 px-4 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"
       >
         {confirming ? "Tap again to confirm — this can't be undone" : "Reset Progress"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setScreen("menu")}
+        className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
+      >
+        Back to Main Menu
       </button>
     </div>
   );
@@ -341,18 +363,26 @@ function ActivePanel() {
 }
 
 function App() {
+  const screen = useGameStore((s) => s.screen);
   const actions = useContextActions();
 
   return (
     <div className="mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden bg-bg text-text">
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <TraceTicker />
-        <StatusBar />
-        <main className="min-h-0 flex-1 overflow-hidden">
-          <ActivePanel />
-        </main>
-        <ActionBar actions={actions} />
-        <TabBar />
+        {screen === "menu" && <MainMenu />}
+        {screen === "levels" && <LevelSelect />}
+        {screen === "game" && (
+          <>
+            <TraceTicker />
+            <StatusBar />
+            <main className="min-h-0 flex-1 overflow-hidden">
+              <ActivePanel />
+            </main>
+            <ActionBar actions={actions} />
+            <TabBar />
+            <BriefingDialog />
+          </>
+        )}
         <div className="scanlines" />
       </div>
     </div>

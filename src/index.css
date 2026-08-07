@@ -44,6 +44,18 @@ body {
   user-select: text;
 }
 
+/*
+ * Holdable clue spans must win over an ancestor .selectable wrapper — otherwise a long-press
+ * inside a readable file body triggers the OS text-selection popup (Copy/Select all/Share)
+ * instead of the custom tap-hold-to-save gesture.
+ */
+.holdable {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
 @keyframes blink-cursor {
   0%,
   49% {
