@@ -40,6 +40,10 @@ export const LEVEL_07: LevelDef = {
             "sync-job.sh executed your payload as root.",
             "Privilege escalation successful — admin-level access granted.",
           ],
+          requiredFactHints: {
+            "found-cron-job": "You don't know what runs as root yet — check the ops runbook.",
+            "found-dropbox": "You don't know where to drop the payload yet — check /srv/shared/dropbox.",
+          },
         },
       ],
       logFalsification: {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { playCombineInvalid, playCombineSuccess } from "../audio/synth";
 import { CLUE_TYPE_LABEL, type Clue } from "../engine/clueSystem";
+import { shortNodeLabel } from "../engine/nodeState";
 import { useGameStore } from "../store/gameStore";
 
 interface DragState {
@@ -81,6 +82,18 @@ export function Workbench() {
   const placedIds = new Set([slotA?.id, slotB?.id].filter(Boolean));
   const tray = clues.filter((c) => !placedIds.has(c.id));
 
+  // Same rule as the Clue Inventory: only show a per-node header once a level has shown the
+  // player more than one node, so single-node levels don't get a noisy repeated label.
+  const trayNodeIds = [...new Set(tray.map((c) => c.nodeId))];
+  const trayGrouped = trayNodeIds.length > 1;
+  const trayGroups = trayGrouped
+    ? trayNodeIds.map((nodeId) => ({
+        nodeId,
+        nodeLabel: shortNodeLabel(tray.find((c) => c.nodeId === nodeId)?.nodeLabel ?? nodeId),
+        clues: tray.filter((c) => c.nodeId === nodeId),
+      }))
+    : [{ nodeId: "all", nodeLabel: "", clues: tray }];
+
   function isOverSlot(ref: React.RefObject<HTMLDivElement | null>, x: number, y: number): boolean {
     const rect = ref.current?.getBoundingClientRect();
     if (!rect) return false;
@@ -141,9 +154,20 @@ export function Workbench() {
             No more clues in the tray. Fill both slots above, or go find more.
           </p>
         ) : (
-          <div className="flex flex-wrap gap-2">
-            {tray.map((clue) => (
-              <ClueChip key={clue.id} clue={clue} onGrab={(e) => grab(clue, e)} />
+          <div className="flex flex-col gap-3">
+            {trayGroups.map((group) => (
+              <div key={group.nodeId} className="flex flex-col gap-2">
+                {trayGrouped && (
+                  <p className="px-1 text-[10px] font-semibold tracking-widest text-accent">
+                    {group.nodeLabel}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {group.clues.map((clue) => (
+                    <ClueChip key={clue.id} clue={clue} onGrab={(e) => grab(clue, e)} />
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         )}

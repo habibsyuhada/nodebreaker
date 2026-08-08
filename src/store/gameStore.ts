@@ -55,6 +55,25 @@ function computeLevelComplete(
   return required.every((f) => discovered[f]);
 }
 
+/** Fallback label for a missing fact when the level data doesn't supply a `requiredFactHints` entry. */
+function humanizeFact(fact: string): string {
+  return `still missing: ${fact.replace(/-/g, " ")}`;
+}
+
+function missingFactLines(
+  label: string,
+  requiredFacts: string[],
+  discovered: Record<string, true>,
+  hints: Record<string, string> | undefined,
+): TerminalLine[] {
+  const missing = requiredFacts.filter((f) => !discovered[f]);
+  return [
+    makeLine(`$ ${label.toLowerCase().replace(/\s+/g, "-")}`, "input"),
+    makeLine("FAILED — preconditions not met.", "warn"),
+    ...missing.map((f) => makeLine(`  - ${hints?.[f] ?? humanizeFact(f)}`, "warn")),
+  ];
+}
+
 /** Node context to stamp onto a newly-created clue — whichever node was current when it was made. */
 function nodeTag(level: LevelDef, currentNodeId: string): { id: string; label: string } {
   const node = level.nodes.find((n) => n.id === currentNodeId);
@@ -477,10 +496,15 @@ export const useGameStore = create<GameState>()(
   },
 
   escalatePrivilege: (escalationId) => {
-    const { level, currentNodeId } = get();
+    const { level, currentNodeId, discovered } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const escalation = node?.privilegeEscalations?.find((e) => e.id === escalationId);
     if (!node || !escalation) return;
+    if (!escalation.requiredFacts.every((f) => discovered[f])) {
+      const lines = missingFactLines(escalation.label, escalation.requiredFacts, discovered, escalation.requiredFactHints);
+      set((state) => ({ terminalLines: [...state.terminalLines, ...lines] }));
+      return;
+    }
     const lines = escalation.narrationText.map((t) => makeLine(t, "success"));
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
@@ -489,10 +513,15 @@ export const useGameStore = create<GameState>()(
   },
 
   plantBackdoor: (backdoorId) => {
-    const { level, currentNodeId } = get();
+    const { level, currentNodeId, discovered } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const backdoor = node?.backdoors?.find((b) => b.id === backdoorId);
     if (!node || !backdoor) return;
+    if (!backdoor.requiredFacts.every((f) => discovered[f])) {
+      const lines = missingFactLines(backdoor.label, backdoor.requiredFacts, discovered, backdoor.requiredFactHints);
+      set((state) => ({ terminalLines: [...state.terminalLines, ...lines] }));
+      return;
+    }
     const lines = backdoor.narrationText.map((t) => makeLine(t, "success"));
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
