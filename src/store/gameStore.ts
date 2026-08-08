@@ -39,6 +39,11 @@ export interface Notification {
   text: string;
 }
 
+export interface MonologueEntry {
+  id: string;
+  lines: string[];
+}
+
 let lineCounter = 0;
 function makeLine(text: string, tone: TerminalTone): TerminalLine {
   lineCounter += 1;
@@ -47,6 +52,7 @@ function makeLine(text: string, tone: TerminalTone): TerminalLine {
 
 const NOTIFICATION_DURATION_MS = 3200;
 let notifCounter = 0;
+let monologueCounter = 0;
 
 function computeLevelComplete(
   level: LevelDef,
@@ -63,17 +69,18 @@ function humanizeFact(fact: string): string {
   return `still missing: ${fact.replace(/-/g, " ")}`;
 }
 
-function missingFactLines(
+/** Lines for a blocked gated action (privilege escalation / backdoor) — shown as a player monologue, not dumped to the terminal. */
+function missingFactMonologue(
   label: string,
   requiredFacts: string[],
   discovered: Record<string, true>,
   hints: Record<string, string> | undefined,
-): TerminalLine[] {
+  lang: Lang,
+): string[] {
   const missing = requiredFacts.filter((f) => !discovered[f]);
   return [
-    makeLine(`$ ${label.toLowerCase().replace(/\s+/g, "-")}`, "input"),
-    makeLine("FAILED — preconditions not met.", "warn"),
-    ...missing.map((f) => makeLine(`  - ${hints?.[f] ?? humanizeFact(f)}`, "warn")),
+    format(translate(UI.gatedActionBlockedMonologue, lang), { label }),
+    ...missing.map((f) => hints?.[f] ?? humanizeFact(f)),
   ];
 }
 
@@ -125,12 +132,26 @@ interface GameState {
 
   /**
    * Short-lived toast queue — surfaces things easy to miss while looking at a different panel:
-   * a clue getting saved, a new action appearing in the ActionBar. Purely transient (not
-   * persisted); each entry removes itself after NOTIFICATION_DURATION_MS.
+   * a new action appearing in the ActionBar. Purely transient (not persisted); each entry
+   * removes itself after NOTIFICATION_DURATION_MS.
    */
   notifications: Notification[];
   pushNotification: (text: string) => void;
   dismissNotification: (id: string) => void;
+
+  /**
+   * Queue of player "session notes" dialogs — a clue getting saved, or a gated action (privilege
+   * escalation / backdoor) attempted before its preconditions are met. Rendered one at a time by
+   * MonologueDialog and dismissed by the player, instead of a corner toast or a terminal dump.
+   */
+  monologueQueue: MonologueEntry[];
+  pushMonologue: (lines: string[]) => void;
+  dismissMonologue: (id: string) => void;
+
+  /** Whether the "restart this level from scratch" confirm dialog is open. Transient, not persisted. */
+  restartConfirmOpen: boolean;
+  openRestartConfirm: () => void;
+  closeRestartConfirm: () => void;
 
   activePanel: PanelId;
   setActivePanel: (panel: PanelId) => void;
@@ -313,6 +334,19 @@ export const useGameStore = create<GameState>()(
   },
   dismissNotification: (id) =>
     set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) })),
+
+  monologueQueue: [],
+  pushMonologue: (lines) => {
+    monologueCounter += 1;
+    const id = `monologue-${monologueCounter}`;
+    set((state) => ({ monologueQueue: [...state.monologueQueue, { id, lines }] }));
+  },
+  dismissMonologue: (id) =>
+    set((state) => ({ monologueQueue: state.monologueQueue.filter((m) => m.id !== id) })),
+
+  restartConfirmOpen: false,
+  openRestartConfirm: () => set({ restartConfirmOpen: true }),
+  closeRestartConfirm: () => set({ restartConfirmOpen: false }),
 
   activePanel: "terminal",
   setActivePanel: (panel) => set({ activePanel: panel }),
@@ -539,13 +573,14 @@ export const useGameStore = create<GameState>()(
   },
 
   escalatePrivilege: (escalationId) => {
-    const { level, currentNodeId, discovered } = get();
+    const { level, currentNodeId, discovered, lang } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const escalation = node?.privilegeEscalations?.find((e) => e.id === escalationId);
     if (!node || !escalation) return;
     if (!escalation.requiredFacts.every((f) => discovered[f])) {
-      const lines = missingFactLines(escalation.label, escalation.requiredFacts, discovered, escalation.requiredFactHints);
-      set((state) => ({ terminalLines: [...state.terminalLines, ...lines] }));
+      get().pushMonologue(
+        missingFactMonologue(escalation.label, escalation.requiredFacts, discovered, escalation.requiredFactHints, lang),
+      );
       return;
     }
     const lines = escalation.narrationText.map((t) => makeLine(t, "success"));
@@ -556,13 +591,14 @@ export const useGameStore = create<GameState>()(
   },
 
   plantBackdoor: (backdoorId) => {
-    const { level, currentNodeId, discovered } = get();
+    const { level, currentNodeId, discovered, lang } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const backdoor = node?.backdoors?.find((b) => b.id === backdoorId);
     if (!node || !backdoor) return;
     if (!backdoor.requiredFacts.every((f) => discovered[f])) {
-      const lines = missingFactLines(backdoor.label, backdoor.requiredFacts, discovered, backdoor.requiredFactHints);
-      set((state) => ({ terminalLines: [...state.terminalLines, ...lines] }));
+      get().pushMonologue(
+        missingFactMonologue(backdoor.label, backdoor.requiredFacts, discovered, backdoor.requiredFactHints, lang),
+      );
       return;
     }
     const lines = backdoor.narrationText.map((t) => makeLine(t, "success"));
@@ -718,6 +754,8 @@ export const useGameStore = create<GameState>()(
       introActive: Boolean(level.intro),
       outroActive: false,
       notifications: [],
+      monologueQueue: [],
+      restartConfirmOpen: false,
       level,
       currentNodeId: level.entryNodeId,
       visitedNodeIds: { [level.entryNodeId]: true },
@@ -753,7 +791,7 @@ export const useGameStore = create<GameState>()(
     const result = addClue(clues, input, nodeTag(level, currentNodeId));
     if (result.added) {
       set({ clues: result.clues });
-      get().pushNotification(format(translate(UI.clueSavedToast, lang), { label: input.label }));
+      get().pushMonologue([format(translate(UI.clueSavedMonologue, lang), { label: input.label })]);
     }
     return result.added;
   },

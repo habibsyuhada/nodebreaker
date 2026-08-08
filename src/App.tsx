@@ -6,9 +6,11 @@ import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { BriefingDialog } from "./components/BriefingDialog";
 import { LanguagePicker } from "./components/LanguagePicker";
 import { LoginPicker } from "./components/LoginPicker";
+import { MonologueDialog } from "./components/MonologueDialog";
 import { NetworkMap } from "./components/NetworkMap";
 import { NetworkMapHint } from "./components/NetworkMapHint";
 import { NotificationToast } from "./components/NotificationToast";
+import { RestartLevelDialog } from "./components/RestartLevelDialog";
 import { StatusBar } from "./components/StatusBar";
 import { StoryScene } from "./components/StoryScene";
 import { TabBar } from "./components/TabBar";
@@ -188,9 +190,12 @@ function SettingsPanel() {
   const t = useT();
   const resetProgress = useGameStore((s) => s.resetProgress);
   const setScreen = useGameStore((s) => s.setScreen);
+  const screen = useGameStore((s) => s.screen);
   const lang = useGameStore((s) => s.lang);
   const setLang = useGameStore((s) => s.setLang);
+  const openRestartConfirm = useGameStore((s) => s.openRestartConfirm);
   const [confirming, setConfirming] = useState(false);
+  const inGame = screen === "game";
 
   useEffect(() => {
     if (!confirming) return;
@@ -230,6 +235,15 @@ function SettingsPanel() {
           </button>
         </div>
       </div>
+      {inGame && (
+        <button
+          type="button"
+          onClick={openRestartConfirm}
+          className="min-h-[44px] rounded border border-warn/40 px-4 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"
+        >
+          {t(UI.restartLevel)}
+        </button>
+      )}
       <button
         type="button"
         onClick={() => {
@@ -522,6 +536,8 @@ function App() {
             <NetworkMapHint />
             <NetworkMap />
             <LoginPicker />
+            <MonologueDialog />
+            <RestartLevelDialog />
             <BriefingDialog />
             <StoryScene />
           </>

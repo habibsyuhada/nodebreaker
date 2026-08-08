@@ -1,6 +1,6 @@
 import { useGameStore } from "../store/gameStore";
 
-/** Small self-dismissing toast stack — surfaces clue saves and newly-unlocked actions. */
+/** Small self-dismissing toast stack — surfaces newly-unlocked actions. */
 export function NotificationToast() {
   const notifications = useGameStore((s) => s.notifications);
   const dismissNotification = useGameStore((s) => s.dismissNotification);

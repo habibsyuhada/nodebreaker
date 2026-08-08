@@ -176,6 +176,27 @@ export const UI = {
 
   // Notification templates — the interpolated {label} stays whatever the source (level/engine)
   // already provides in English, since level content isn't in scope for this pass.
-  clueSavedToast: { en: "Clue saved: {label}", id: "Petunjuk tersimpan: {label}" },
   newActionUnlockedToast: { en: "New action unlocked: {label}", id: "Aksi baru terbuka: {label}" },
+
+  // MonologueDialog — the player's own session notes. Replaces the corner toast for clue saves
+  // and replaces the terminal "FAILED — preconditions not met." dump for blocked gated actions
+  // (privilege escalation / backdoor) with the player thinking it through instead.
+  youAuthorLabel: { en: "You", id: "Kamu" },
+  sessionNotesChannel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+  clueSavedMonologue: {
+    en: "Worth keeping. Saved to my notes: {label}",
+    id: "Layak disimpan. Tersimpan ke catatan saya: {label}",
+  },
+  gatedActionBlockedMonologue: {
+    en: "Not yet — {label} still needs:",
+    id: "Belum bisa — {label} masih butuh:",
+  },
+
+  // RestartLevelDialog
+  restartLevel: { en: "Restart Level", id: "Ulangi Level" },
+  keepGoing: { en: "Keep Going", id: "Lanjutkan" },
+  restartLevelPrompt: {
+    en: "Pull the plug on this run? Every login, backdoor, and export I've made here resets — I'd be breaking in from scratch.",
+    id: "Putus sesi ini sekarang? Semua login, backdoor, dan data yang sudah saya ambil di sini bakal reset — saya harus masuk dari awal lagi.",
+  },
 } satisfies Record<string, LocalizedText>;
