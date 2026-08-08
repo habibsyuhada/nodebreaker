@@ -353,6 +353,10 @@ export const LEVEL_08: LevelDef = {
             "ledger-sync.sh executed your payload as root.",
             "Privilege escalation successful — admin-level access granted.",
           ],
+          requiredFactHints: {
+            "found-cron-job-finance": "You don't know what runs as root yet — check the ops runbook.",
+            "found-dropbox-finance": "You don't know where to drop the payload yet — check /srv/shared/dropbox.",
+          },
         },
       ],
       backdoors: [
@@ -366,6 +370,9 @@ export const LEVEL_08: LevelDef = {
             "Hiding a persistent hook inside the sync job...",
             "Backdoor planted — admin access will survive a credentials reset.",
           ],
+          requiredFactHints: {
+            "privilege-escalated": "You need root on this system first — escalate privileges (Drop Payload) before planting a backdoor.",
+          },
         },
       ],
       pivots: [
@@ -473,6 +480,12 @@ export const LEVEL_08: LevelDef = {
             "Export complete — full dataset staged for exfil.",
             "LEVEL 8 COMPLETE.",
           ],
+          requiredFactHints: {
+            "backdoor-edge": "No persistent foothold on the Edge gateway (203.0.113.150) — plant a backdoor there.",
+            "backdoor-finance": "No persistent foothold on Finance (192.168.40.20) — escalate privileges there and plant a backdoor.",
+            "read-hr-data": "HR records haven't been pulled — read employee_roster.csv on the HR system (192.168.40.12).",
+            "read-finance-data": "Finance records haven't been pulled — escalate privileges on Finance, then read records/budget_2024.csv.",
+          },
         },
       ],
       root: {

@@ -116,6 +116,12 @@ export interface PrivilegeEscalationDef {
   grantsFact: string;
   /** Terminal lines appended (success tone) when it runs. */
   narrationText: string[];
+  /**
+   * Human-readable explanation per entry in `requiredFacts`, shown (warn tone) when the player
+   * triggers this action before that fact is discovered — so a failed attempt tells them what to
+   * go do next instead of the action just silently staying unavailable.
+   */
+  requiredFactHints?: Record<string, string>;
 }
 
 /**
@@ -145,6 +151,12 @@ export interface BackdoorDef {
   grantsFact: string;
   /** Terminal lines appended (success tone) when it runs. */
   narrationText: string[];
+  /**
+   * Human-readable explanation per entry in `requiredFacts`, shown (warn tone) when the player
+   * triggers this action before that fact is discovered — so a failed attempt tells them what to
+   * go do next instead of the action just silently staying unavailable.
+   */
+  requiredFactHints?: Record<string, string>;
 }
 
 export interface LevelNodeDef {

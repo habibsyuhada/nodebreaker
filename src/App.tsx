@@ -358,9 +358,8 @@ function useContextActions(): ContextActionsResult {
       }
     }
     for (const esc of node.privilegeEscalations ?? []) {
-      const ready = accessGranted && esc.requiredFacts.every((f) => discovered[f]);
       const done = discovered[esc.grantsFact];
-      if (ready && !done) {
+      if (accessGranted && !done) {
         actions.push({
           id: `escalate-${esc.id}`,
           label: esc.label,
@@ -370,9 +369,8 @@ function useContextActions(): ContextActionsResult {
       }
     }
     for (const bd of node.backdoors ?? []) {
-      const ready = accessGranted && bd.requiredFacts.every((f) => discovered[f]);
       const done = discovered[bd.grantsFact];
-      if (ready && !done) {
+      if (accessGranted && !done) {
         actions.push({
           id: `backdoor-${bd.id}`,
           label: bd.label,
