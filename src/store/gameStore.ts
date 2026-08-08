@@ -34,11 +34,6 @@ export interface CombineFeedback {
   message: string;
 }
 
-export interface Notification {
-  id: string;
-  text: string;
-}
-
 export interface MonologueEntry {
   id: string;
   lines: string[];
@@ -50,8 +45,6 @@ function makeLine(text: string, tone: TerminalTone): TerminalLine {
   return { id: `line-${lineCounter}`, text, tone };
 }
 
-const NOTIFICATION_DURATION_MS = 3200;
-let notifCounter = 0;
 let monologueCounter = 0;
 
 function computeLevelComplete(
@@ -129,15 +122,6 @@ interface GameState {
    */
   outroActive: boolean;
   dismissOutro: () => void;
-
-  /**
-   * Short-lived toast queue — surfaces things easy to miss while looking at a different panel:
-   * a new action appearing in the ActionBar. Purely transient (not persisted); each entry
-   * removes itself after NOTIFICATION_DURATION_MS.
-   */
-  notifications: Notification[];
-  pushNotification: (text: string) => void;
-  dismissNotification: (id: string) => void;
 
   /**
    * Queue of player "session notes" dialogs — a clue getting saved, or a gated action (privilege
@@ -322,18 +306,6 @@ export const useGameStore = create<GameState>()(
 
   outroActive: false,
   dismissOutro: () => set({ outroActive: false }),
-
-  notifications: [],
-  pushNotification: (text) => {
-    notifCounter += 1;
-    const id = `notif-${notifCounter}`;
-    set((state) => ({ notifications: [...state.notifications, { id, text }] }));
-    window.setTimeout(() => {
-      set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) }));
-    }, NOTIFICATION_DURATION_MS);
-  },
-  dismissNotification: (id) =>
-    set((state) => ({ notifications: state.notifications.filter((n) => n.id !== id) })),
 
   monologueQueue: [],
   pushMonologue: (lines) => {
@@ -753,7 +725,6 @@ export const useGameStore = create<GameState>()(
       briefingActive: true,
       introActive: Boolean(level.intro),
       outroActive: false,
-      notifications: [],
       monologueQueue: [],
       restartConfirmOpen: false,
       level,

@@ -174,13 +174,11 @@ export const UI = {
   skip: { en: "Skip", id: "Lewati" },
   tapToContinue: { en: "Tap to continue", id: "Tap untuk lanjut" },
 
-  // Notification templates — the interpolated {label} stays whatever the source (level/engine)
-  // already provides in English, since level content isn't in scope for this pass.
-  newActionUnlockedToast: { en: "New action unlocked: {label}", id: "Aksi baru terbuka: {label}" },
-
   // MonologueDialog — the player's own session notes. Replaces the corner toast for clue saves
-  // and replaces the terminal "FAILED — preconditions not met." dump for blocked gated actions
-  // (privilege escalation / backdoor) with the player thinking it through instead.
+  // and new-action-unlocked, and replaces the terminal "FAILED — preconditions not met." dump for
+  // blocked gated actions (privilege escalation / backdoor), with the player thinking it through
+  // instead. The interpolated {label} stays whatever the source (level/engine) already provides
+  // in English, since level content isn't in scope for this pass.
   youAuthorLabel: { en: "You", id: "Kamu" },
   sessionNotesChannel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
   clueSavedMonologue: {
