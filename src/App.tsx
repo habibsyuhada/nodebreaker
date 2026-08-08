@@ -4,6 +4,7 @@ import { Sprite } from "./art/spriteEngine";
 import { playAmbientPulse, playGlitch } from "./audio/synth";
 import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { BriefingDialog } from "./components/BriefingDialog";
+import { LanguagePicker } from "./components/LanguagePicker";
 import { LoginPicker } from "./components/LoginPicker";
 import { NetworkMap } from "./components/NetworkMap";
 import { NetworkMapHint } from "./components/NetworkMapHint";
@@ -499,6 +500,7 @@ function App() {
       <div className="relative flex min-h-0 flex-1 flex-col">
         {screen === "menu" && <MainMenu />}
         {screen === "levels" && <LevelSelect />}
+        {screen === "settings" && <SettingsPanel />}
         {screen === "game" && (
           <>
             <TraceTicker />
@@ -518,6 +520,7 @@ function App() {
           </>
         )}
         <div className="scanlines" />
+        <LanguagePicker />
       </div>
     </div>
   );

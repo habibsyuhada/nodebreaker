@@ -82,6 +82,13 @@ export function MainMenu() {
         </button>
         <button
           type="button"
+          onClick={() => setScreen("settings")}
+          className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
+        >
+          Settings
+        </button>
+        <button
+          type="button"
           onClick={() => setExited(true)}
           className="min-h-[44px] rounded border border-warn/40 px-4 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"
         >

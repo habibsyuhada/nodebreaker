@@ -17,7 +17,7 @@ import type { LevelDef, LevelNodeDef } from "../levels/types";
 
 export type PanelId = "terminal" | "files" | "clues" | "settings";
 
-export type ScreenId = "menu" | "levels" | "game";
+export type ScreenId = "menu" | "levels" | "game" | "settings";
 
 export type TerminalTone = "input" | "output" | "success" | "warn" | "system";
 
@@ -82,7 +82,10 @@ interface GameState {
 
   /** UI language for scene content (SceneCard/SceneDef text) — persisted, doesn't affect other UI strings. */
   lang: Lang;
+  /** Sets lang and marks langChosen true — used by both the first-run LanguagePicker and the Settings toggle. */
   setLang: (lang: Lang) => void;
+  /** False until the player has ever picked a language (LanguagePicker or Settings) — gates a blocking first-run overlay above every screen. Persisted. */
+  langChosen: boolean;
 
   /**
    * True from the moment a level (re)loads until the player dismisses its intro victim scene
@@ -245,6 +248,7 @@ interface PersistedState {
   visitedNodeIds: Record<string, true>;
   networkMapHintShown: boolean;
   lang: Lang;
+  langChosen: boolean;
   introActive: boolean;
   outroActive: boolean;
 }
@@ -268,7 +272,8 @@ export const useGameStore = create<GameState>()(
   dismissBriefing: () => set({ briefingActive: false }),
 
   lang: "en",
-  setLang: (lang) => set({ lang }),
+  setLang: (lang) => set({ lang, langChosen: true }),
+  langChosen: false,
 
   introActive: false,
   dismissIntro: () => set({ introActive: false }),
@@ -878,6 +883,7 @@ export const useGameStore = create<GameState>()(
     visitedNodeIds: state.visitedNodeIds,
     networkMapHintShown: state.networkMapHintShown,
     lang: state.lang,
+    langChosen: state.langChosen,
     introActive: state.introActive,
     outroActive: state.outroActive,
   }),
@@ -901,6 +907,7 @@ export const useGameStore = create<GameState>()(
       visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
       networkMapHintShown: p.networkMapHintShown ?? false,
       lang: p.lang ?? "en",
+      langChosen: p.langChosen ?? false,
       introActive: p.introActive ?? false,
       outroActive: p.outroActive ?? false,
       terminalLines: briefingLines(level),
