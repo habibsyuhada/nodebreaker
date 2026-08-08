@@ -2,6 +2,9 @@ import { useEffect } from "react";
 import { playCombineInvalid, playCombineSuccess } from "../audio/synth";
 import { CLUE_TYPE_LABEL, type Clue } from "../engine/clueSystem";
 import { shortNodeLabel } from "../engine/nodeState";
+import { format } from "../i18n";
+import { UI } from "../i18n/ui";
+import { useT } from "../i18n/useT";
 import { useGameStore } from "../store/gameStore";
 
 interface ClueRowProps {
@@ -12,6 +15,7 @@ interface ClueRowProps {
 }
 
 function ClueRow({ clue, selected, cracking, onToggle }: ClueRowProps) {
+  const t = useT();
   return (
     <div
       onClick={onToggle}
@@ -25,7 +29,7 @@ function ClueRow({ clue, selected, cracking, onToggle }: ClueRowProps) {
       <div className="min-w-0 flex-1">
         <p className="truncate font-mono text-xs text-text-bright">{clue.value}</p>
         <p className="mt-0.5 text-[10px] text-text-dim">
-          {cracking ? "cracking..." : `${clue.label} · from ${clue.source}`}
+          {cracking ? t(UI.cracking) : `${clue.label} · from ${clue.source}`}
         </p>
       </div>
     </div>
@@ -33,6 +37,7 @@ function ClueRow({ clue, selected, cracking, onToggle }: ClueRowProps) {
 }
 
 export function ClueInventory() {
+  const t = useT();
   const clues = useGameStore((s) => s.clues);
   const selectedClueId = useGameStore((s) => s.selectedClueId);
   const crackingClueId = useGameStore((s) => s.crackingClueId);
@@ -49,19 +54,17 @@ export function ClueInventory() {
       navigator.vibrate?.([15, 40, 15]);
       playCombineInvalid();
     }
-    const t = window.setTimeout(clearTransformFeedback, 1800);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(clearTransformFeedback, 1800);
+    return () => window.clearTimeout(timer);
   }, [transformFeedback, clearTransformFeedback]);
 
   if (clues.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
         <p className="text-sm font-semibold tracking-widest text-text-bright">
-          CLUE INVENTORY — EMPTY
+          {t(UI.clueInventoryEmpty)}
         </p>
-        <p className="text-xs text-text-dim">
-          Tap and hold text you find in Terminal or Files to save it here.
-        </p>
+        <p className="text-xs text-text-dim">{t(UI.clueInventoryEmptyBody)}</p>
       </div>
     );
   }
@@ -82,7 +85,10 @@ export function ClueInventory() {
   return (
     <div className="flex h-full flex-col gap-2 overflow-y-auto p-3">
       <p className="px-1 text-[11px] tracking-wide text-text-dim">
-        {clues.length} clue{clues.length === 1 ? "" : "s"} saved · tap a clue to select it
+        {format(t(UI.clueCountLabel), {
+          n: String(clues.length),
+          plural: clues.length === 1 ? "" : "s",
+        })}
       </p>
       {groups.map((group) => (
         <div key={group.nodeId} className="flex flex-col gap-2">

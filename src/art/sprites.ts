@@ -71,3 +71,83 @@ export const FOLDER_SPRITE: SpriteGrid = [
   "................",
   "................",
 ];
+
+// 16x16 — plain silhouette: head + shoulders. Used for scene cards with kind "victim"/"bystander".
+export const PERSON_SPRITE: SpriteGrid = [
+  "................",
+  "......hhhh......",
+  ".....h....h.....",
+  ".....h....h.....",
+  "......hhhh......",
+  "................",
+  "....hhhhhhhh....",
+  "...hffffffffh...",
+  "..hffffffffffh..",
+  "..hffffffffffh..",
+  "..hffffffffffh..",
+  "..hffffffffffh..",
+  "..hffffffffffh..",
+  "..hhhhhhhhhhhh..",
+  "................",
+  "................",
+];
+
+// 16x16 — same silhouette with a warning-toned necktie. Used for scene cards with kind "perp".
+export const SUIT_SPRITE: SpriteGrid = [
+  "................",
+  "......hhhh......",
+  ".....h....h.....",
+  ".....h....h.....",
+  "......hhhh......",
+  "................",
+  "....hhhhhhhh....",
+  "...hfffwwfffh...",
+  "..hffffwwffffh..",
+  "..hffffwwffffh..",
+  "..hffffffffffh..",
+  "..hffffffffffh..",
+  "..hffffffffffh..",
+  "..hhhhhhhhhhhh..",
+  "................",
+  "................",
+];
+
+// 16x16 — warning triangle with an exclamation mark. Used for scene cards with kind "system".
+export const ALERT_SPRITE: SpriteGrid = [
+  "................",
+  "................",
+  "................",
+  ".......hh.......",
+  "......hffh......",
+  ".....hffffh.....",
+  "....hffffffh....",
+  "...hfffwwfffh...",
+  "..hffffwwffffh..",
+  ".hfffffwwfffffh.",
+  "hffffffffffffffh",
+  "hhhhhhhhhhhhhhhh",
+  "................",
+  "................",
+  "................",
+  "................",
+];
+
+// 16x16 — megaphone bell, opening to the right. Used for scene cards with kind "public".
+export const MEGAPHONE_SPRITE: SpriteGrid = [
+  "................",
+  "............aa..",
+  ".............hhh",
+  "...........hfffh",
+  ".........hfffffh",
+  ".......hfffffffh",
+  ".....hfffffffffh",
+  "...hfffffffffffh",
+  "...hfffffffffffh",
+  ".....hfffffffffh",
+  ".......hfffffffh",
+  ".........hfffffh",
+  "...........hfffh",
+  ".............hhh",
+  ".............a..",
+  "................",
+];

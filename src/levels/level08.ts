@@ -13,6 +13,178 @@ export const LEVEL_08: LevelDef = {
   entryNodeId: "halcyon-edge",
   successText: ["ACCESS GRANTED.", "You're in. Keep moving — there's more network to cover."],
   completionRequires: ["exported-core-data"],
+  intro: {
+    kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
+    closer: { en: "Stitch them together.", id: "Sambungkan semuanya." },
+    cards: [
+      {
+        id: "l8-context",
+        kind: "system",
+        channel: { en: "Halcyon Dynamics — Board Deck (leaked slide 4)", id: "Halcyon Dynamics — Slide Dewan Direksi (bocor, slide 4)" },
+        author: { en: "Corporate Strategy", id: "Strategi Korporat" },
+        body: [
+          {
+            en: "Portfolio synergies, Q3: 4 holdings/partners generating incremental margin via shared risk absorption.",
+            id: "Sinergi portofolio, Q3: 4 aset/mitra menghasilkan margin tambahan lewat penyerapan risiko bersama.",
+          },
+        ],
+      },
+      {
+        id: "l8-harm",
+        kind: "system",
+        channel: { en: "Halcyon Dynamics — Board Deck (leaked slide 4)", id: "Halcyon Dynamics — Slide Dewan Direksi (bocor, slide 4)" },
+        author: { en: "Corporate Strategy", id: "Strategi Korporat" },
+        body: [
+          {
+            en: "Riverside Health — denial-optimization license, renewed. Fleetline Logistics — freight contract, renewed. Nimbus Systems — acquired Q1. Cityview Records — permit facilitation, ongoing.",
+            id: "Riverside Health — lisensi optimisasi penolakan klaim, diperpanjang. Fleetline Logistics — kontrak pengiriman, diperpanjang. Nimbus Systems — diakuisisi Q1. Cityview Records — fasilitasi izin, berjalan.",
+          },
+        ],
+      },
+      {
+        id: "l8-brushoff",
+        kind: "system",
+        channel: { en: "#compliance-flags", id: "#compliance-flags" },
+        author: { en: "Compliance Bot", id: "Bot Kepatuhan" },
+        body: [
+          {
+            en: "Flag: 4 subsidiary/partner entities under active labor or consumer complaints. Status: acknowledged, no action required.",
+            id: "Tanda: 4 entitas anak usaha/mitra sedang dalam keluhan tenaga kerja atau konsumen aktif. Status: diketahui, tidak perlu tindakan.",
+          },
+        ],
+      },
+      {
+        id: "l8-gloat",
+        kind: "perp",
+        channel: { en: "DM — Board Member to CFO", id: "DM — Anggota Dewan ke CFO" },
+        author: { en: "Board Member", id: "Anggota Dewan" },
+        body: [
+          {
+            en: "Every one of those is a rounding error with a lawyer attached. Nobody stitches them together.",
+            id: "Semua itu cuma selisih pembulatan yang ada pengacaranya. Gak ada yang bakal menyambungkan semuanya.",
+          },
+          {
+            en: "Keep them separate on paper. That's the whole plan.",
+            id: "Jaga biar tetap terpisah di atas kertas. Itu seluruh rencananya.",
+          },
+        ],
+      },
+      {
+        id: "l8-plan",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "One login, four systems tied to everything I've already seen. Get in, get everything, correlate it all at once.",
+            id: "Satu login, empat sistem yang terikat ke semua yang sudah saya lihat. Masuk, ambil semuanya, cocokkan semua sekaligus.",
+          },
+        ],
+      },
+    ],
+  },
+  outro: {
+    kicker: { en: "FALLOUT", id: "DAMPAK" },
+    closer: {
+      en: "Every rounding error just got a name.",
+      id: "Setiap selisih pembulatan sekarang punya nama.",
+    },
+    cards: [
+      {
+        id: "l8-outro-action",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Backdoors in edge and finance, HR and budget data in hand — ran the correlation. Every case just got the same name at the top.",
+            id: "Backdoor di edge dan finance, data HR dan anggaran di tangan — jalankan korelasi. Setiap kasus baru saja dapat nama yang sama di atasnya.",
+          },
+        ],
+        answers: "l8-plan",
+      },
+      {
+        id: "l8-outro-correlate",
+        kind: "public",
+        channel: { en: "correlate --sources hr,finance — output", id: "correlate --sources hr,finance — keluaran" },
+        author: { en: "System", id: "Sistem" },
+        body: [
+          {
+            en: "Cross-reference complete. Halcyon Dynamics named as the common owner/backer across 5 prior cases.",
+            id: "Pencocokan silang selesai. Halcyon Dynamics teridentifikasi sebagai pemilik/pendana bersama di 5 kasus sebelumnya.",
+          },
+        ],
+        answers: "l8-gloat",
+      },
+      {
+        id: "l8-outro-cityview",
+        kind: "system",
+        channel: { en: "Cityview Municipal Records", id: "Cityview Municipal Records" },
+        author: { en: "System", id: "Sistem" },
+        body: [
+          {
+            en: "Ward 3 permit funding traced back to Halcyon. Filing under review.",
+            id: "Pendanaan izin Wilayah 3 terlacak balik ke Halcyon. Berkas sedang ditinjau ulang.",
+          },
+        ],
+      },
+      {
+        id: "l8-outro-nimbus",
+        kind: "system",
+        channel: { en: "Nimbus Systems — Internal", id: "Nimbus Systems — Internal" },
+        author: { en: "System", id: "Sistem" },
+        body: [
+          {
+            en: "Acquisition memo confirms Halcyon ordered the SDK's data collection scope. Yosef's original complaint attached as exhibit A.",
+            id: "Memo akuisisi mengonfirmasi Halcyon yang memerintahkan cakupan pengumpulan data SDK. Keluhan asli Yosef dilampirkan sebagai bukti A.",
+          },
+        ],
+      },
+      {
+        id: "l8-outro-fleetline",
+        kind: "system",
+        channel: { en: "Fleetline Logistics — Contract Records", id: "Fleetline Logistics — Catatan Kontrak" },
+        author: { en: "System", id: "Sistem" },
+        body: [
+          {
+            en: "Freight contract renewal tied to the same holding company. Bayu's case reopened.",
+            id: "Perpanjangan kontrak pengiriman terikat ke perusahaan induk yang sama. Kasus Bayu dibuka kembali.",
+          },
+        ],
+      },
+      {
+        id: "l8-outro-riverside",
+        kind: "system",
+        channel: { en: "Riverside Health — Licensing", id: "Riverside Health — Perizinan" },
+        author: { en: "System", id: "Sistem" },
+        body: [
+          {
+            en: "Denial-optimization license traced to Halcyon. Quota program suspended pending review.",
+            id: "Lisensi optimisasi penolakan klaim terlacak ke Halcyon. Program kuota dihentikan sementara menunggu peninjauan.",
+          },
+        ],
+      },
+      {
+        id: "l8-outro-adisa",
+        kind: "victim",
+        channel: { en: "Building WiFi — Group Chat", id: "WiFi Gedung — Grup Chat" },
+        author: { en: "Mrs. Adisa (4A)", id: "Bu Adisa (4A)" },
+        body: [
+          {
+            en: "(unrelated, probably) — grandson's class ran fine again tonight.",
+            id: "(gak ada hubungannya, mungkin) — kelas cucu saya lancar lagi malam ini.",
+          },
+        ],
+      },
+      {
+        id: "l8-outro-panic",
+        kind: "perp",
+        channel: { en: "DM — Board Member to CFO", id: "DM — Anggota Dewan ke CFO" },
+        author: { en: "Board Member", id: "Anggota Dewan" },
+        body: [{ en: "someone stitched them together", id: "ada yang nyambungin semuanya" }],
+      },
+    ],
+  },
   nodes: [
     {
       id: "halcyon-edge",

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { playCombineInvalid, playCombineSuccess } from "../audio/synth";
 import { CLUE_TYPE_LABEL, type Clue } from "../engine/clueSystem";
 import { shortNodeLabel } from "../engine/nodeState";
+import { UI } from "../i18n/ui";
+import { useT } from "../i18n/useT";
 import { useGameStore } from "../store/gameStore";
 
 interface DragState {
@@ -54,6 +56,7 @@ function Slot({
 }
 
 export function Workbench() {
+  const t = useT();
   const clues = useGameStore((s) => s.clues);
   const slotA = useGameStore((s) => s.slotA);
   const slotB = useGameStore((s) => s.slotB);
@@ -75,8 +78,8 @@ export function Workbench() {
       navigator.vibrate?.([15, 40, 15]);
       playCombineInvalid();
     }
-    const t = window.setTimeout(clearCombineFeedback, 1800);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(clearCombineFeedback, 1800);
+    return () => window.clearTimeout(timer);
   }, [combineFeedback, clearCombineFeedback]);
 
   const placedIds = new Set([slotA?.id, slotB?.id].filter(Boolean));
@@ -129,9 +132,7 @@ export function Workbench() {
       onPointerCancel={() => setDrag(null)}
     >
       <div className="border-b border-border bg-panel p-4">
-        <p className="mb-3 text-[11px] tracking-wide text-text-dim">
-          Drag two clues here to try combining them
-        </p>
+        <p className="mb-3 text-[11px] tracking-wide text-text-dim">{t(UI.dragTwoClues)}</p>
         <div className="flex items-center gap-3">
           <Slot label="A" clue={slotA} slotRef={slotARef} onClear={() => clearSlot("A")} />
           <span className="text-lg text-text-dim">+</span>
@@ -150,9 +151,7 @@ export function Workbench() {
 
       <div className="flex-1 overflow-y-auto p-3">
         {tray.length === 0 ? (
-          <p className="p-3 text-center text-xs text-text-dim">
-            No more clues in the tray. Fill both slots above, or go find more.
-          </p>
+          <p className="p-3 text-center text-xs text-text-dim">{t(UI.noMoreCluesInTray)}</p>
         ) : (
           <div className="flex flex-col gap-3">
             {trayGroups.map((group) => (

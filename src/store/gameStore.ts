@@ -11,12 +11,15 @@ import {
   traceLogFactId,
 } from "../engine/traceSystem";
 import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
+import { format, t as translate } from "../i18n";
+import type { Lang } from "../i18n";
+import { UI } from "../i18n/ui";
 import { LEVELS } from "../levels";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
 
 export type PanelId = "terminal" | "files" | "clues" | "settings";
 
-export type ScreenId = "menu" | "levels" | "game";
+export type ScreenId = "menu" | "levels" | "game" | "settings";
 
 export type TerminalTone = "input" | "output" | "success" | "warn" | "system";
 
@@ -87,6 +90,7 @@ interface GameState {
 
   /** Level ids that have been completed at least once — drives Level Select's lock/checkmark state. */
   completedLevels: Record<string, true>;
+  /** Sets outroActive (if the level has an outro) in the same call — see outroActive doc below. */
   markLevelComplete: (levelId: string) => void;
 
   /**
@@ -96,6 +100,28 @@ interface GameState {
    */
   briefingActive: boolean;
   dismissBriefing: () => void;
+
+  /** UI language for scene content (SceneCard/SceneDef text) — persisted, doesn't affect other UI strings. */
+  lang: Lang;
+  /** Sets lang and marks langChosen true — used by both the first-run LanguagePicker and the Settings toggle. */
+  setLang: (lang: Lang) => void;
+  /** False until the player has ever picked a language (LanguagePicker or Settings) — gates a blocking first-run overlay above every screen. Persisted. */
+  langChosen: boolean;
+
+  /**
+   * True from the moment a level (re)loads until the player dismisses its intro victim scene
+   * (if the level has one — levels without `intro` never set this true). Covers BriefingDialog
+   * too, so the order is: intro scene → briefing → play.
+   */
+  introActive: boolean;
+  dismissIntro: () => void;
+
+  /**
+   * True once markLevelComplete fires for a level with an `outro` scene, until the player
+   * dismisses it. Covers StatusBar/ActionBar/TabBar so it reads as a full scene, not a panel.
+   */
+  outroActive: boolean;
+  dismissOutro: () => void;
 
   /**
    * Short-lived toast queue — surfaces things easy to miss while looking at a different panel:
@@ -242,6 +268,10 @@ interface PersistedState {
   briefingActive: boolean;
   visitedNodeIds: Record<string, true>;
   networkMapHintShown: boolean;
+  lang: Lang;
+  langChosen: boolean;
+  introActive: boolean;
+  outroActive: boolean;
 }
 
 const SAVE_KEY = "nodebreaker-save";
@@ -254,10 +284,23 @@ export const useGameStore = create<GameState>()(
 
   completedLevels: {},
   markLevelComplete: (levelId) =>
-    set((state) => ({ completedLevels: { ...state.completedLevels, [levelId]: true } })),
+    set((state) => ({
+      completedLevels: { ...state.completedLevels, [levelId]: true },
+      outroActive: state.level.id === levelId && Boolean(state.level.outro),
+    })),
 
   briefingActive: true,
   dismissBriefing: () => set({ briefingActive: false }),
+
+  lang: "en",
+  setLang: (lang) => set({ lang, langChosen: true }),
+  langChosen: false,
+
+  introActive: false,
+  dismissIntro: () => set({ introActive: false }),
+
+  outroActive: false,
+  dismissOutro: () => set({ outroActive: false }),
 
   notifications: [],
   pushNotification: (text) => {
@@ -672,6 +715,8 @@ export const useGameStore = create<GameState>()(
     if (!level) return;
     set({
       briefingActive: true,
+      introActive: Boolean(level.intro),
+      outroActive: false,
       notifications: [],
       level,
       currentNodeId: level.entryNodeId,
@@ -704,11 +749,11 @@ export const useGameStore = create<GameState>()(
   },
 
   saveClue: (input) => {
-    const { clues, level, currentNodeId } = get();
+    const { clues, level, currentNodeId, lang } = get();
     const result = addClue(clues, input, nodeTag(level, currentNodeId));
     if (result.added) {
       set({ clues: result.clues });
-      get().pushNotification(`Clue saved: ${input.label}`);
+      get().pushNotification(format(translate(UI.clueSavedToast, lang), { label: input.label }));
     }
     return result.added;
   },
@@ -868,6 +913,10 @@ export const useGameStore = create<GameState>()(
     briefingActive: state.briefingActive,
     visitedNodeIds: state.visitedNodeIds,
     networkMapHintShown: state.networkMapHintShown,
+    lang: state.lang,
+    langChosen: state.langChosen,
+    introActive: state.introActive,
+    outroActive: state.outroActive,
   }),
   merge: (persisted, current) => {
     const p = persisted as Partial<PersistedState> | undefined;
@@ -888,6 +937,10 @@ export const useGameStore = create<GameState>()(
       briefingActive: p.briefingActive ?? true,
       visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
       networkMapHintShown: p.networkMapHintShown ?? false,
+      lang: p.lang ?? "en",
+      langChosen: p.langChosen ?? false,
+      introActive: p.introActive ?? false,
+      outroActive: p.outroActive ?? false,
       terminalLines: briefingLines(level),
       terminalRevealCount: 0,
     };

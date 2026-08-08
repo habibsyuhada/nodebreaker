@@ -1,0 +1,53 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+      - claude/victim-scenario-before-after-m76i08
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one Pages deployment at a time; let an in-flight run finish rather than cancel it, so a
+# quick double-push can't leave the site half-deployed.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          GH_PAGES: 'true'
+      # enablement: true lets this step turn on Pages (build type "workflow") itself via the API
+      # on the first run, instead of requiring a manual Settings > Pages click beforehand.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    # No `environment: github-pages` block here on purpose: GitHub auto-creates that environment
+    # with a deployment-branch-policy limited to the repo's default branch, so a job scoped to it
+    # gets rejected outright (no runner assigned, fails in ~2s) on any other branch — including
+    # this one. deploy-pages only needs id-token/pages permissions (already granted above) to
+    # authenticate and publish; the environment block is purely a GitHub UI/approval affordance.
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,3 +1,5 @@
+import type { LocalizedText } from "../i18n";
+
 export interface PortInfo {
   port: number;
   service: string;
@@ -72,7 +74,7 @@ export interface QuickLogin {
 /**
  * A "compare two files" recon action: diffs two file contents line-by-line and prints the
  * result to the terminal (unchanged lines plain, changed lines marked). Diff output can embed
- * clue markup, e.g. so a changed hash line stays tap-hold-savable in the diff view itself.
+ * clue markup, e.g. so a changed hash line stays tap-savable in the diff view itself.
  */
 export interface FileCompareDef {
   id: string;
@@ -181,6 +183,42 @@ export interface LevelNodeDef {
   adminOnlineThreshold?: number;
 }
 
+/** Who a scene card's content is attributed to — drives the card's visual chrome (border color, avatar sprite). */
+export type SceneSourceKind = "victim" | "perp" | "bystander" | "system" | "public" | "player";
+
+/**
+ * One beat of an intro/outro scene: an intercepted message (chat line, ticket, memo excerpt).
+ * Intro scenes read like a leaked feed the player is watching before they act; outro scenes
+ * mirror it back, each card answering a specific intro card by id.
+ */
+export interface SceneCard {
+  id: string;
+  kind: SceneSourceKind;
+  /** Where this was intercepted, e.g. "Building Group Chat", "#ops-internal", "Ticket #4471". */
+  channel: LocalizedText;
+  /** Who appears to have written it, e.g. "Mrs. Adisa (4A)". */
+  author: LocalizedText;
+  /** Optional small detail line, e.g. a timestamp or "19 days open". */
+  meta?: LocalizedText;
+  body: LocalizedText[];
+  /**
+   * Outro cards only: id of the intro card this answers. StoryScene renders that card's first
+   * body line struck-through above this card's own content as the visual payoff.
+   */
+  answers?: string;
+  /** Outro cards only: card is skipped unless every one of these facts was discovered this playthrough. */
+  requiresFacts?: string[];
+}
+
+/** A full before-hack or after-hack scene: a short sequence of intercepted-comms cards. */
+export interface SceneDef {
+  /** Small label above the first card, e.g. "SIGNAL INTERCEPT" / "FALLOUT". */
+  kicker: LocalizedText;
+  cards: SceneCard[];
+  /** Optional final stinger line, rendered bare and centered after the last card. */
+  closer?: LocalizedText;
+}
+
 export interface LevelDef {
   id: string;
   index: number;
@@ -196,4 +234,8 @@ export interface LevelDef {
    * E.g. level 3 requires "logs-deleted" — access alone isn't enough, you have to cover your tracks.
    */
   completionRequires?: string[];
+  /** Before-hack scene shown ahead of BriefingDialog — the victim being hurt, then the perpetrator gloating. */
+  intro?: SceneDef;
+  /** After-hack scene shown once the level completes — mirrors intro cards via SceneCard.answers. */
+  outro?: SceneDef;
 }
