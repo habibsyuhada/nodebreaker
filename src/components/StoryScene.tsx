@@ -4,6 +4,7 @@ import { Sprite } from "../art/spriteEngine";
 import type { SpriteGrid } from "../art/spriteEngine";
 import { playCombineSuccess, playGlitch, playTypeTick } from "../audio/synth";
 import { t } from "../i18n";
+import { UI } from "../i18n/ui";
 import type { SceneCard, SceneSourceKind } from "../levels/types";
 import { useGameStore } from "../store/gameStore";
 
@@ -138,7 +139,7 @@ export function StoryScene() {
           }}
           className="min-h-[32px] px-2 text-[10px] tracking-wide text-text-dim active:text-accent"
         >
-          Skip
+          {t(UI.skip, lang)}
         </button>
       </div>
       <div className="flex min-h-0 flex-1 flex-col justify-end gap-3 overflow-y-auto p-4">
@@ -192,10 +193,10 @@ export function StoryScene() {
             }}
             className="min-h-[44px] w-full rounded border border-accent/40 text-xs font-medium tracking-wide text-accent active:bg-accent-dim"
           >
-            Continue
+            {t(UI.continueBtn, lang)}
           </button>
         ) : (
-          <p className="text-center text-[10px] text-text-dim">Tap to continue</p>
+          <p className="text-center text-[10px] text-text-dim">{t(UI.tapToContinue, lang)}</p>
         )}
       </div>
     </div>

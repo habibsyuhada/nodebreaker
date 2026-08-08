@@ -11,7 +11,9 @@ import {
   traceLogFactId,
 } from "../engine/traceSystem";
 import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
+import { format, t as translate } from "../i18n";
 import type { Lang } from "../i18n";
+import { UI } from "../i18n/ui";
 import { LEVELS } from "../levels";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
 
@@ -718,11 +720,11 @@ export const useGameStore = create<GameState>()(
   },
 
   saveClue: (input) => {
-    const { clues, level, currentNodeId } = get();
+    const { clues, level, currentNodeId, lang } = get();
     const result = addClue(clues, input, nodeTag(level, currentNodeId));
     if (result.added) {
       set({ clues: result.clues });
-      get().pushNotification(`Clue saved: ${input.label}`);
+      get().pushNotification(format(translate(UI.clueSavedToast, lang), { label: input.label }));
     }
     return result.added;
   },

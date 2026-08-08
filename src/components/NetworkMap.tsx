@@ -1,4 +1,6 @@
 import { shortNodeLabel } from "../engine/nodeState";
+import { UI } from "../i18n/ui";
+import { useT } from "../i18n/useT";
 import { useGameStore } from "../store/gameStore";
 
 /**
@@ -9,6 +11,7 @@ import { useGameStore } from "../store/gameStore";
  * names instead of memorizing IPs) plus a sense of where you've already been.
  */
 export function NetworkMap() {
+  const t = useT();
   const networkMapOpen = useGameStore((s) => s.networkMapOpen);
   const setNetworkMapOpen = useGameStore((s) => s.setNetworkMapOpen);
   const level = useGameStore((s) => s.level);
@@ -42,13 +45,13 @@ export function NetworkMap() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold tracking-widest text-text-bright">NETWORK MAP</h2>
+          <h2 className="text-xs font-semibold tracking-widest text-text-bright">{t(UI.networkMap)}</h2>
           <button
             type="button"
             onClick={() => setNetworkMapOpen(false)}
             className="min-h-[32px] px-2 text-xs text-text-dim active:text-accent"
           >
-            Close
+            {t(UI.close)}
           </button>
         </div>
         <div className="flex flex-col gap-2 overflow-y-auto">
@@ -79,7 +82,7 @@ export function NetworkMap() {
                     isCurrent || tappable ? "text-accent" : "text-text-dim"
                   }`}
                 >
-                  {isCurrent ? "HERE" : tappable ? "PIVOT" : "VISITED"}
+                  {isCurrent ? t(UI.here) : tappable ? "PIVOT" : t(UI.visited)}
                 </span>
               </button>
             );

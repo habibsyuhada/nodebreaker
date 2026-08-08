@@ -2,6 +2,9 @@ import { useRef } from "react";
 import { IconDoc, IconFiles } from "../art/icons";
 import { HOLD_MS, HoldableText } from "../components/HoldableText";
 import { findEntry, pathToString, searchFilesystem } from "../engine/nodeState";
+import { format } from "../i18n";
+import { UI } from "../i18n/ui";
+import { useT } from "../i18n/useT";
 import type { FileEntry } from "../levels/types";
 import { useCurrentNode, useGameStore } from "../store/gameStore";
 
@@ -34,6 +37,7 @@ function Breadcrumb({ path, onNavigate }: { path: string[]; onNavigate: (p: stri
 }
 
 function SearchView() {
+  const t = useT();
   const node = useCurrentNode();
   const discovered = useGameStore((s) => s.discovered);
   const searchKeyword = useGameStore((s) => s.searchKeyword);
@@ -45,9 +49,7 @@ function SearchView() {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b border-border bg-panel p-3">
-        <p className="mb-2 text-[11px] tracking-wide text-text-dim">
-          Search file contents for a keyword
-        </p>
+        <p className="mb-2 text-[11px] tracking-wide text-text-dim">{t(UI.searchFileContents)}</p>
         <div className="flex flex-wrap gap-2">
           {PRESET_KEYWORDS.map((kw) => (
             <button
@@ -66,11 +68,11 @@ function SearchView() {
         </div>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {!searchKeyword && (
-          <p className="p-3 text-xs text-text-dim">Tap a chip above to search.</p>
-        )}
+        {!searchKeyword && <p className="p-3 text-xs text-text-dim">{t(UI.tapChipToSearch)}</p>}
         {searchKeyword && results.length === 0 && (
-          <p className="p-3 text-xs text-text-dim">No matches for "{searchKeyword}".</p>
+          <p className="p-3 text-xs text-text-dim">
+            {format(t(UI.noMatchesFor), { keyword: searchKeyword })}
+          </p>
         )}
         {results.map((r, i) => (
           <button
@@ -145,6 +147,7 @@ function EntryRow({ entry, onOpen, onInspect }: EntryRowProps) {
 }
 
 export function FileBrowser() {
+  const t = useT();
   const node = useCurrentNode();
   const discovered = useGameStore((s) => s.discovered);
   const currentPath = useGameStore((s) => s.currentPath);
@@ -188,9 +191,9 @@ export function FileBrowser() {
         </div>
         <div className="flex-1 overflow-y-auto p-3">
           {locked ? (
-            <p className="text-xs text-warn">PERMISSION DENIED — administrator privileges required.</p>
+            <p className="text-xs text-warn">{t(UI.permissionDenied)}</p>
           ) : entry?.readable === false ? (
-            <p className="text-xs text-warn">[binary data — not human-readable]</p>
+            <p className="text-xs text-warn">{t(UI.binaryData)}</p>
           ) : (
             <pre className="whitespace-pre-wrap font-mono text-xs text-text">
               <HoldableText content={entry?.content ?? ""} source={filename} />
@@ -214,7 +217,7 @@ export function FileBrowser() {
       <div className="flex-1 overflow-y-auto">
         {entries.length === 0 ? (
           <p className="p-3 text-xs text-text-dim">
-            (empty directory — {pathToString(currentPath)})
+            {format(t(UI.emptyDirectory), { path: pathToString(currentPath) })}
           </p>
         ) : (
           entries.map((entry) => (

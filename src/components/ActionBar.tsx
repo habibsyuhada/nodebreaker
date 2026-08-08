@@ -1,3 +1,6 @@
+import { UI } from "../i18n/ui";
+import { useT } from "../i18n/useT";
+
 export interface ContextAction {
   id: string;
   label: string;
@@ -21,10 +24,12 @@ interface ActionBarProps {
 
 /** Bottom contextual action bar — the primary way players trigger actions (no typing). */
 export function ActionBar({ actions }: ActionBarProps) {
+  const t = useT();
+
   if (actions.length === 0) {
     return (
       <div className="flex h-16 shrink-0 items-center justify-center border-t border-border bg-panel-alt px-3 text-xs text-text-dim">
-        no actions available
+        {t(UI.noActionsAvailable)}
       </div>
     );
   }

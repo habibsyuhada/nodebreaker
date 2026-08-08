@@ -13,6 +13,9 @@ import { StatusBar } from "./components/StatusBar";
 import { StoryScene } from "./components/StoryScene";
 import { TabBar } from "./components/TabBar";
 import { TRACE_HOT_THRESHOLD, TRACE_TICK_INTERVAL_MS } from "./engine/traceSystem";
+import { format } from "./i18n";
+import { UI } from "./i18n/ui";
+import { useT } from "./i18n/useT";
 import { LEVELS } from "./levels";
 import { ClueInventory } from "./panels/ClueInventory";
 import { FileBrowser } from "./panels/FileBrowser";
@@ -83,6 +86,7 @@ function TraceTicker() {
  * level's starting toolkit never fires as "new".
  */
 function ActionNotifier({ actions }: { actions: ContextAction[] }) {
+  const t = useT();
   const pushNotification = useGameStore((s) => s.pushNotification);
   const briefingActive = useGameStore((s) => s.briefingActive);
   const currentNodeId = useGameStore((s) => s.currentNodeId);
@@ -99,16 +103,19 @@ function ActionNotifier({ actions }: { actions: ContextAction[] }) {
     const seen = seenIdsRef.current;
     if (seen) {
       for (const action of actions) {
-        if (!seen.has(action.id)) pushNotification(`New action unlocked: ${action.label}`);
+        if (!seen.has(action.id)) {
+          pushNotification(format(t(UI.newActionUnlockedToast), { label: action.label }));
+        }
       }
     }
     seenIdsRef.current = currentIds;
-  }, [actions, briefingActive, pushNotification]);
+  }, [actions, briefingActive, pushNotification, t]);
 
   return null;
 }
 
 function BreachedScreen() {
+  const t = useT();
   const level = useGameStore((s) => s.level);
   const loadLevel = useGameStore((s) => s.loadLevel);
   const setScreen = useGameStore((s) => s.setScreen);
@@ -117,11 +124,9 @@ function BreachedScreen() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
       <Sprite grid={LOCK_SPRITE} palette={BASE_PALETTE} size={64} title="unlocked" />
-      <p className="text-sm font-semibold tracking-widest text-accent">NODE BREACHED</p>
+      <p className="text-sm font-semibold tracking-widest text-accent">{t(UI.nodeBreached)}</p>
       <p className="text-xs text-text-dim">
-        {nextLevel
-          ? "Next target is online whenever you're ready."
-          : "More levels are on the way. Replay this one, or sit with the win."}
+        {nextLevel ? t(UI.nextTargetOnline) : t(UI.moreLevelsComing)}
       </p>
       <div className="flex flex-wrap justify-center gap-2">
         <button
@@ -129,7 +134,7 @@ function BreachedScreen() {
           onClick={() => loadLevel(level.index)}
           className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
         >
-          Replay Level
+          {t(UI.replayLevel)}
         </button>
         {nextLevel && (
           <button
@@ -137,7 +142,7 @@ function BreachedScreen() {
             onClick={() => loadLevel(nextLevel.index)}
             className="min-h-[44px] rounded border border-accent/40 px-4 text-xs font-medium tracking-wide text-accent active:bg-accent-dim"
           >
-            Next Level
+            {t(UI.nextLevel)}
           </button>
         )}
         <button
@@ -145,7 +150,7 @@ function BreachedScreen() {
           onClick={() => setScreen("menu")}
           className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
         >
-          Main Menu
+          {t(UI.mainMenu)}
         </button>
       </div>
     </div>
@@ -153,6 +158,7 @@ function BreachedScreen() {
 }
 
 function BurnedScreen() {
+  const t = useT();
   const level = useGameStore((s) => s.level);
   const loadLevel = useGameStore((s) => s.loadLevel);
 
@@ -164,23 +170,22 @@ function BurnedScreen() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
       <p className="text-sm font-semibold tracking-widest text-warn crt-flicker glitch-shift">
-        CONNECTION LOST — NODE BURNED
+        {t(UI.connectionLost)}
       </p>
-      <p className="text-xs text-text-dim">
-        They caught the session before you finished. The node is off-limits now — try again.
-      </p>
+      <p className="text-xs text-text-dim">{t(UI.burnedBody)}</p>
       <button
         type="button"
         onClick={() => loadLevel(level.index)}
         className="min-h-[44px] rounded border border-warn/40 px-4 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"
       >
-        Retry Level
+        {t(UI.retryLevel)}
       </button>
     </div>
   );
 }
 
 function SettingsPanel() {
+  const t = useT();
   const resetProgress = useGameStore((s) => s.resetProgress);
   const setScreen = useGameStore((s) => s.setScreen);
   const lang = useGameStore((s) => s.lang);
@@ -189,22 +194,17 @@ function SettingsPanel() {
 
   useEffect(() => {
     if (!confirming) return;
-    const t = window.setTimeout(() => setConfirming(false), 3000);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setConfirming(false), 3000);
+    return () => window.clearTimeout(timer);
   }, [confirming]);
 
   return (
     <div className="flex h-full flex-col gap-4 p-4">
-      <h1 className="text-sm font-semibold tracking-widest text-text-bright">SETTINGS</h1>
-      <p className="text-xs text-text-dim">
-        Reduced motion is auto-detected from your system, and sound respects it too.
-      </p>
-      <p className="text-xs text-text-dim">
-        Your level, clues, and trace save automatically to this device — closing the tab won't
-        lose your place.
-      </p>
+      <h1 className="text-sm font-semibold tracking-widest text-text-bright">{t(UI.settingsTitle)}</h1>
+      <p className="text-xs text-text-dim">{t(UI.reducedMotionNote)}</p>
+      <p className="text-xs text-text-dim">{t(UI.autosaveNote)}</p>
       <div className="flex flex-col gap-2">
-        <p className="text-xs text-text-dim">Story scene language (before/after each hack).</p>
+        <p className="text-xs text-text-dim">{t(UI.languageLabel)}</p>
         <div className="flex gap-2">
           <button
             type="button"
@@ -242,14 +242,14 @@ function SettingsPanel() {
         }}
         className="min-h-[44px] rounded border border-warn/40 px-4 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"
       >
-        {confirming ? "Tap again to confirm — this can't be undone" : "Reset Progress"}
+        {confirming ? t(UI.resetConfirm) : t(UI.resetProgress)}
       </button>
       <button
         type="button"
         onClick={() => setScreen("menu")}
         className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
       >
-        Back to Main Menu
+        {t(UI.backToMainMenu)}
       </button>
     </div>
   );
@@ -307,19 +307,20 @@ function useContextActions(): ContextActionsResult {
   const checkLeakDatabase = useGameStore((s) => s.checkLeakDatabase);
   const node = useCurrentNode();
   const levelComplete = useLevelComplete();
+  const t = useT();
 
   if (levelComplete || burned) return { actions: [], notableActions: [] };
 
   const terminalActions: ContextAction[] = (() => {
-    const actions: ContextAction[] = [{ id: "scan", label: "Scan Ports", onClick: runScan }];
+    const actions: ContextAction[] = [{ id: "scan", label: t(UI.scanPorts), onClick: runScan }];
     if (node.systemUsers.length > 0) {
-      actions.push({ id: "list-users", label: "List Users", onClick: listUsers });
+      actions.push({ id: "list-users", label: t(UI.listUsers), onClick: listUsers });
     }
     if (node.traceEnabled) {
-      actions.push({ id: "check-trace", label: "Check Trace", onClick: checkTrace });
+      actions.push({ id: "check-trace", label: t(UI.checkTrace), onClick: checkTrace });
     }
     if (accessGranted && !discovered["logs-deleted"] && !node.logFalsification) {
-      actions.push({ id: "delete-logs", label: "Delete Logs", onClick: deleteLogs, danger: true, notable: true });
+      actions.push({ id: "delete-logs", label: t(UI.deleteLogs), onClick: deleteLogs, danger: true, notable: true });
     }
     if (node.logFalsification && accessGranted && !discovered["logs-falsified"]) {
       const ready = node.logFalsification.requiredFacts.every((f) => discovered[f]);
@@ -381,8 +382,8 @@ function useContextActions(): ContextActionsResult {
       }
     }
     if (node.adminOnlineThreshold !== undefined) {
-      actions.push({ id: "check-connections", label: "Check Connections", onClick: checkConnections });
-      actions.push({ id: "hide", label: "Hide", onClick: goQuiet });
+      actions.push({ id: "check-connections", label: t(UI.checkConnections), onClick: checkConnections });
+      actions.push({ id: "hide", label: t(UI.hide), onClick: goQuiet });
     }
     if (node.quickLogin) {
       const loginReady = node.quickLogin.requiredFacts.every((f) => discovered[f]);
@@ -395,7 +396,7 @@ function useContextActions(): ContextActionsResult {
       if (hasUsername && hasPassword) {
         actions.push({
           id: "login",
-          label: "Login",
+          label: t(UI.login),
           onClick: () => setLoginPickerOpen(true),
           notable: true,
         });
@@ -406,19 +407,19 @@ function useContextActions(): ContextActionsResult {
 
   const filesActions: ContextAction[] = (() => {
     if (inspectingPath) {
-      return [{ id: "close-inspect", label: "Close", onClick: closeInspect }];
+      return [{ id: "close-inspect", label: t(UI.close), onClick: closeInspect }];
     }
     if (openFilePath) {
-      return [{ id: "close", label: "Close", onClick: closeFile }];
+      return [{ id: "close", label: t(UI.close), onClick: closeFile }];
     }
     if (searchOpen) {
-      return [{ id: "close-search", label: "Close Search", onClick: closeSearch }];
+      return [{ id: "close-search", label: t(UI.closeSearch), onClick: closeSearch }];
     }
     const actions: ContextAction[] = [];
     if (currentPath.length > 0) {
-      actions.push({ id: "up", label: ".. Up", onClick: () => goToPath(currentPath.slice(0, -1)) });
+      actions.push({ id: "up", label: t(UI.upNav), onClick: () => goToPath(currentPath.slice(0, -1)) });
     }
-    actions.push({ id: "search", label: "Search", onClick: openSearch });
+    actions.push({ id: "search", label: t(UI.search), onClick: openSearch });
     return actions;
   })();
 
@@ -426,14 +427,14 @@ function useContextActions(): ContextActionsResult {
     if (workbenchOpen) {
       const actions: ContextAction[] = [];
       if (slotA && slotB) {
-        actions.push({ id: "combine", label: "Combine", onClick: combineSlots });
+        actions.push({ id: "combine", label: t(UI.combine), onClick: combineSlots });
       }
       if (slotA || slotB) {
-        actions.push({ id: "clear-slots", label: "Clear Slots", onClick: clearSlots });
+        actions.push({ id: "clear-slots", label: t(UI.clearSlots), onClick: clearSlots });
       }
       actions.push({
         id: "close-workbench",
-        label: "Close Workbench",
+        label: t(UI.closeWorkbench),
         onClick: () => setWorkbenchOpen(false),
       });
       return actions;
@@ -441,23 +442,23 @@ function useContextActions(): ContextActionsResult {
     const actions: ContextAction[] = [];
     const selectedClue = clues.find((c) => c.id === selectedClueId);
     if (selectedClue?.type === "encoded") {
-      actions.push({ id: "decode", label: "Decode", onClick: decodeClue });
+      actions.push({ id: "decode", label: t(UI.decode), onClick: decodeClue });
     }
     if (selectedClue?.type === "hash") {
       actions.push({
         id: "crack",
-        label: crackingClueId === selectedClue.id ? "Cracking..." : "Crack Hash",
+        label: crackingClueId === selectedClue.id ? t(UI.crackingAction) : t(UI.crackHash),
         onClick: startCrackHash,
         disabled: crackingClueId !== null,
       });
     }
     if (selectedClue?.type === "email") {
-      actions.push({ id: "leak-check", label: "Check Leak DB", onClick: checkLeakDatabase });
+      actions.push({ id: "leak-check", label: t(UI.checkLeakDb), onClick: checkLeakDatabase });
     }
     if (clues.length >= 2) {
       actions.push({
         id: "open-workbench",
-        label: "Workbench",
+        label: t(UI.workbench),
         onClick: () => setWorkbenchOpen(true),
         notable: true,
       });

@@ -1,4 +1,6 @@
 import { IconClues } from "../art/icons";
+import { UI } from "../i18n/ui";
+import { useT } from "../i18n/useT";
 import { LEVELS } from "../levels";
 import { useGameStore } from "../store/gameStore";
 
@@ -9,6 +11,7 @@ function isUnlocked(index: number, completedLevels: Record<string, true>): boole
 }
 
 export function LevelSelect() {
+  const t = useT();
   const setScreen = useGameStore((s) => s.setScreen);
   const loadLevel = useGameStore((s) => s.loadLevel);
   const completedLevels = useGameStore((s) => s.completedLevels);
@@ -21,10 +24,10 @@ export function LevelSelect() {
           onClick={() => setScreen("menu")}
           className="min-h-[44px] px-1 text-xs text-text-dim active:text-accent"
         >
-          ‹ Menu
+          {t(UI.menuBack)}
         </button>
         <h1 className="flex-1 text-center text-xs font-semibold tracking-widest text-text-bright">
-          SELECT TARGET
+          {t(UI.selectTarget)}
         </h1>
         <span className="w-12" aria-hidden="true" />
       </div>
@@ -57,13 +60,13 @@ export function LevelSelect() {
                   </span>
                   {complete && (
                     <span className="flex items-center gap-1 text-[10px] tracking-wide text-accent">
-                      <IconClues size={12} /> DONE
+                      <IconClues size={12} /> {t(UI.done)}
                     </span>
                   )}
-                  {!unlocked && <span className="text-[10px] tracking-wide text-text-dim">LOCKED</span>}
+                  {!unlocked && <span className="text-[10px] tracking-wide text-text-dim">{t(UI.locked)}</span>}
                 </div>
                 <span className="text-[11px] text-text-dim">
-                  {unlocked && entryNode ? `${entryNode.ip} — ${entryNode.orgName}` : "Complete the previous target to unlock."}
+                  {unlocked && entryNode ? `${entryNode.ip} — ${entryNode.orgName}` : t(UI.completePreviousTarget)}
                 </span>
               </button>
             );
