@@ -71,12 +71,37 @@ export const LEVEL_06: LevelDef = {
           },
         ],
       },
+      {
+        id: "l6-plan",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Handoff note's got Drake's login. Get in quiet, find the pre-edit timesheet — and stay clear of whatever that folder trap is.",
+            id: "Catatan handoff ada login Drake. Masuk diam-diam, cari timesheet asli — dan hindari apa pun jebakan folder itu.",
+          },
+        ],
+      },
     ],
   },
   outro: {
     kicker: { en: "FALLOUT", id: "DAMPAK" },
     closer: { en: "The watcher list is the proof now.", id: "Daftar pengawas itu sekarang jadi buktinya." },
     cards: [
+      {
+        id: "l6-outro-action",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Restored the pre-edit sheet and mailed it to the whole roster — the honeypot's watcher list came along as proof.",
+            id: "Pulihkan sheet asli dan kirim ke semua sopir — daftar pengawas honeypot ikut terbawa sebagai bukti.",
+          },
+        ],
+        answers: "l6-plan",
+      },
       {
         id: "l6-outro-relief",
         kind: "victim",

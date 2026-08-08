@@ -111,6 +111,7 @@ function ActionNotifier({ actions }: { actions: ContextAction[] }) {
 function BreachedScreen() {
   const level = useGameStore((s) => s.level);
   const loadLevel = useGameStore((s) => s.loadLevel);
+  const setScreen = useGameStore((s) => s.setScreen);
   const nextLevel = LEVELS[level.index + 1];
 
   return (
@@ -122,7 +123,7 @@ function BreachedScreen() {
           ? "Next target is online whenever you're ready."
           : "More levels are on the way. Replay this one, or sit with the win."}
       </p>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap justify-center gap-2">
         <button
           type="button"
           onClick={() => loadLevel(level.index)}
@@ -139,6 +140,13 @@ function BreachedScreen() {
             Next Level
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setScreen("menu")}
+          className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
+        >
+          Main Menu
+        </button>
       </div>
     </div>
   );

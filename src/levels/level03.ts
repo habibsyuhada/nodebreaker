@@ -70,6 +70,18 @@ export const LEVEL_03: LevelDef = {
           { en: "Friday's audit closes clean — for us.", id: "Audit Jumat kelar bersih — buat kita." },
         ],
       },
+      {
+        id: "l3-plan",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Need Martin's login before Friday's audit closes. Whatever's really in that export, I need to see it first.",
+            id: "Perlu login Martin sebelum audit Jumat ditutup. Apa pun isi asli export itu, saya harus lihat duluan.",
+          },
+        ],
+      },
     ],
   },
   outro: {
@@ -79,6 +91,19 @@ export const LEVEL_03: LevelDef = {
       id: "Sekarang kertasnya bilang hal lain.",
     },
     cards: [
+      {
+        id: "l3-outro-action",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Pulled the real export and Voss's edit instructions. Deleted my own tracks — left his exactly where they were.",
+            id: "Ambil export asli dan instruksi edit dari Voss. Hapus jejak saya sendiri — jejak dia dibiarkan persis di tempatnya.",
+          },
+        ],
+        answers: "l3-plan",
+      },
       {
         id: "l3-outro-clear",
         kind: "victim",

@@ -65,12 +65,37 @@ export const LEVEL_01: LevelDef = {
           { en: "She'll never figure it out.", id: "Dia gak bakal pernah nyadar." },
         ],
       },
+      {
+        id: "l1-plan",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Need into that router. Factory reset creds, probably — nobody in this building ever changes them.",
+            id: "Perlu masuk ke router itu. Kemungkinan besar masih kredensial bawaan pabrik — gak ada yang pernah ganti di gedung ini.",
+          },
+        ],
+      },
     ],
   },
   outro: {
     kicker: { en: "FALLOUT", id: "DAMPAK" },
     closer: { en: "The line's even now.", id: "Jalurnya sudah rata sekarang." },
     cards: [
+      {
+        id: "l1-outro-action",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Capped 4B's bandwidth allocation. She'll never know why — she'll just have a working connection again.",
+            id: "Batasi alokasi bandwidth 4B. Dia gak bakal pernah tahu kenapa — dia cuma bakal punya koneksi yang lancar lagi.",
+          },
+        ],
+        answers: "l1-plan",
+      },
       {
         id: "l1-outro-relief",
         kind: "victim",

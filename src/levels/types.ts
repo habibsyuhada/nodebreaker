@@ -74,7 +74,7 @@ export interface QuickLogin {
 /**
  * A "compare two files" recon action: diffs two file contents line-by-line and prints the
  * result to the terminal (unchanged lines plain, changed lines marked). Diff output can embed
- * clue markup, e.g. so a changed hash line stays tap-hold-savable in the diff view itself.
+ * clue markup, e.g. so a changed hash line stays tap-savable in the diff view itself.
  */
 export interface FileCompareDef {
   id: string;
@@ -172,7 +172,7 @@ export interface LevelNodeDef {
 }
 
 /** Who a scene card's content is attributed to — drives the card's visual chrome (border color, avatar sprite). */
-export type SceneSourceKind = "victim" | "perp" | "bystander" | "system" | "public";
+export type SceneSourceKind = "victim" | "perp" | "bystander" | "system" | "public" | "player";
 
 /**
  * One beat of an intro/outro scene: an intercepted message (chat line, ticket, memo excerpt).

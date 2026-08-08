@@ -71,6 +71,18 @@ export const LEVEL_05: LevelDef = {
           },
         ],
       },
+      {
+        id: "l5-plan",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Public portal won't have logins — but it'll leak something pointing at the real system.",
+            id: "Portal publik gak bakal punya login — tapi pasti ada yang bocor nunjuk ke sistem aslinya.",
+          },
+        ],
+      },
     ],
   },
   outro: {
@@ -78,9 +90,22 @@ export const LEVEL_05: LevelDef = {
     closer: { en: "The quota's gone. The records were never the point.", id: "Kuotanya sudah hilang. Rekam medis memang bukan tujuannya." },
     cards: [
       {
+        id: "l5-outro-action",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Reused email/password combo. Straight into internal ops — grabbed the quota memo and reversed the denials in the queue.",
+            id: "Kombinasi email/password yang dipakai ulang. Langsung masuk ke ops internal — ambil memo kuota dan batalkan penolakan yang tertunda.",
+          },
+        ],
+        answers: "l5-plan",
+      },
+      {
         id: "l5-outro-untouched",
-        kind: "system",
-        channel: { en: "Session Log — local", id: "Log Sesi — lokal" },
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
         author: { en: "You", id: "Kamu" },
         body: [
           {

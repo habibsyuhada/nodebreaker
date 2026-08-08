@@ -66,12 +66,37 @@ export const LEVEL_02: LevelDef = {
           { en: "Ticket #2117: closed.", id: "Tiket #2117: ditutup." },
         ],
       },
+      {
+        id: "l2-plan",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Storefront admin panel. If sarahk's this careless with reviews, she's probably just as careless with her password.",
+            id: "Panel admin toko. Kalau sarahk seceroboh itu sama review, kemungkinan besar dia juga ceroboh sama passwordnya.",
+          },
+        ],
+      },
     ],
   },
   outro: {
     kicker: { en: "FALLOUT", id: "DAMPAK" },
     closer: { en: "340 reviews just came back.", id: "340 review baru saja kembali." },
     cards: [
+      {
+        id: "l2-outro-action",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Force-flushed the refund queue and killed the auto-delete cron. Everyone gets their money and their words back.",
+            id: "Paksa proses antrean refund dan matikan cron auto-hapus. Semua orang dapat uang dan kata-katanya kembali.",
+          },
+        ],
+        answers: "l2-plan",
+      },
       {
         id: "l2-outro-refund",
         kind: "victim",

@@ -15,6 +15,7 @@ const KIND_SPRITE: Record<SceneSourceKind, SpriteGrid> = {
   perp: SUIT_SPRITE,
   system: ALERT_SPRITE,
   public: MEGAPHONE_SPRITE,
+  player: PERSON_SPRITE,
 };
 
 const KIND_CARD_CLASS: Record<SceneSourceKind, string> = {
@@ -23,6 +24,8 @@ const KIND_CARD_CLASS: Record<SceneSourceKind, string> = {
   perp: "border-warn/40 glitch-shift",
   system: "border-border",
   public: "border-border",
+  // Dashed, not solid — this is the player's own head, not an intercepted message.
+  player: "border-dashed border-text-bright/30",
 };
 
 const KIND_AUTHOR_CLASS: Record<SceneSourceKind, string> = {
@@ -31,6 +34,7 @@ const KIND_AUTHOR_CLASS: Record<SceneSourceKind, string> = {
   perp: "text-warn",
   system: "text-text-dim",
   public: "text-text-bright",
+  player: "text-text-bright",
 };
 
 /** For an outro card's `answers`, finds the referenced intro card's opening line to render struck-through. */

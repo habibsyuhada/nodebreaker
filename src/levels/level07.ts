@@ -76,12 +76,37 @@ export const LEVEL_07: LevelDef = {
           },
         ],
       },
+      {
+        id: "l7-plan",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Clerk-level login first. Won't see the deed from there, but it'll get me close enough to fix the register without tripping anything.",
+            id: "Login level petugas dulu. Gak bakal langsung lihat akta dari situ, tapi cukup dekat buat perbaiki register tanpa memicu apa pun.",
+          },
+        ],
+      },
     ],
   },
   outro: {
     kicker: { en: "FALLOUT", id: "DAMPAK" },
     closer: { en: "The register looks like it was never touched.", id: "Register terlihat seperti tak pernah disentuh." },
     cards: [
+      {
+        id: "l7-outro-action",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Escalated, restored the deed's original entry, then falsified the access log so it reads like the office found its own mistake.",
+            id: "Eskalasi, pulihkan entri asli akta, lalu palsukan log akses supaya terlihat seperti kantor menemukan kesalahannya sendiri.",
+          },
+        ],
+        answers: "l7-plan",
+      },
       {
         id: "l7-outro-relief",
         kind: "victim",

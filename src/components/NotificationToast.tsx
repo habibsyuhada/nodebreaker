@@ -8,13 +8,16 @@ export function NotificationToast() {
   if (notifications.length === 0) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-14 z-40 flex flex-col items-center gap-2 px-3">
+    // Right-aligned corner chip, not a full-width banner — a centered banner here used to sit
+    // right at the top of the panel content and block the first lines of whatever the player was
+    // reading. A small chip tucked in the corner stays visible without covering the page.
+    <div className="pointer-events-none absolute right-2 top-14 z-40 flex flex-col items-end gap-1.5">
       {notifications.map((n) => (
         <button
           key={n.id}
           type="button"
           onClick={() => dismissNotification(n.id)}
-          className="pointer-events-auto max-w-[92%] rounded border border-accent/40 bg-panel px-3 py-2 text-center text-[11px] text-accent shadow-lg active:bg-accent-dim"
+          className="pointer-events-auto max-w-[220px] rounded border border-accent/40 bg-panel/95 px-2.5 py-1.5 text-left text-[10px] leading-snug text-accent shadow-lg active:bg-accent-dim"
         >
           {n.text}
         </button>

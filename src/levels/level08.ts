@@ -69,6 +69,18 @@ export const LEVEL_08: LevelDef = {
           },
         ],
       },
+      {
+        id: "l8-plan",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "One login, four systems tied to everything I've already seen. Get in, get everything, correlate it all at once.",
+            id: "Satu login, empat sistem yang terikat ke semua yang sudah saya lihat. Masuk, ambil semuanya, cocokkan semua sekaligus.",
+          },
+        ],
+      },
     ],
   },
   outro: {
@@ -78,6 +90,19 @@ export const LEVEL_08: LevelDef = {
       id: "Setiap selisih pembulatan sekarang punya nama.",
     },
     cards: [
+      {
+        id: "l8-outro-action",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Backdoors in edge and finance, HR and budget data in hand — ran the correlation. Every case just got the same name at the top.",
+            id: "Backdoor di edge dan finance, data HR dan anggaran di tangan — jalankan korelasi. Setiap kasus baru saja dapat nama yang sama di atasnya.",
+          },
+        ],
+        answers: "l8-plan",
+      },
       {
         id: "l8-outro-correlate",
         kind: "public",

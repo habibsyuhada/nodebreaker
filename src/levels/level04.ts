@@ -69,12 +69,37 @@ export const LEVEL_04: LevelDef = {
           { en: "Ship it Friday.", id: "Rilis aja hari Jumat." },
         ],
       },
+      {
+        id: "l4-plan",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Need into the deploy box. If Yosef flagged this in writing, there's a paper trail somewhere in staging.",
+            id: "Perlu masuk ke deploy box. Kalau Yosef melaporkannya tertulis, pasti ada jejak dokumen di staging.",
+          },
+        ],
+      },
     ],
   },
   outro: {
     kicker: { en: "FALLOUT", id: "DAMPAK" },
     closer: { en: "It's out now.", id: "Sekarang sudah tersebar." },
     cards: [
+      {
+        id: "l4-outro-action",
+        kind: "player",
+        channel: { en: "Session Notes — local", id: "Catatan Sesi — lokal" },
+        author: { en: "You", id: "Kamu" },
+        body: [
+          {
+            en: "Pulled the harvest config and the buried memo, posted both somewhere an NDA can't touch.",
+            id: "Ambil konfigurasi harvest dan memo yang dikubur, posting keduanya di tempat yang gak bisa disentuh NDA.",
+          },
+        ],
+        answers: "l4-plan",
+      },
       {
         id: "l4-outro-relief",
         kind: "victim",
