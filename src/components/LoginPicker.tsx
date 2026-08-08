@@ -1,5 +1,7 @@
 import type { Clue } from "../engine/clueSystem";
 import { shortNodeLabel } from "../engine/nodeState";
+import { UI } from "../i18n/ui";
+import { useT } from "../i18n/useT";
 import { useGameStore } from "../store/gameStore";
 
 interface CredentialRowProps {
@@ -33,6 +35,7 @@ function CredentialRow({ clue, selected, showNodeLabel, onSelect }: CredentialRo
  * for several different systems at once.
  */
 export function LoginPicker() {
+  const t = useT();
   const open = useGameStore((s) => s.loginPickerOpen);
   const setOpen = useGameStore((s) => s.setLoginPickerOpen);
   const clues = useGameStore((s) => s.clues);
@@ -59,19 +62,19 @@ export function LoginPicker() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-xs font-semibold tracking-widest text-text-bright">LOGIN</h2>
+          <h2 className="text-xs font-semibold tracking-widest text-text-bright">{t(UI.loginTitle)}</h2>
           <button
             type="button"
             onClick={() => setOpen(false)}
             className="min-h-[32px] px-2 text-xs text-text-dim active:text-accent"
           >
-            Close
+            {t(UI.close)}
           </button>
         </div>
         <div className="flex flex-col gap-2 overflow-y-auto">
-          <p className="text-[10px] tracking-widest text-text-dim">USERNAME</p>
+          <p className="text-[10px] tracking-widest text-text-dim">{t(UI.usernameLabel)}</p>
           {usernames.length === 0 ? (
-            <p className="text-xs text-text-dim">No username clues saved yet.</p>
+            <p className="text-xs text-text-dim">{t(UI.noUsernameClues)}</p>
           ) : (
             usernames.map((c) => (
               <CredentialRow
@@ -83,9 +86,9 @@ export function LoginPicker() {
               />
             ))
           )}
-          <p className="mt-2 text-[10px] tracking-widest text-text-dim">PASSWORD</p>
+          <p className="mt-2 text-[10px] tracking-widest text-text-dim">{t(UI.passwordLabel)}</p>
           {passwords.length === 0 ? (
-            <p className="text-xs text-text-dim">No password clues saved yet.</p>
+            <p className="text-xs text-text-dim">{t(UI.noPasswordClues)}</p>
           ) : (
             passwords.map((c) => (
               <CredentialRow
@@ -108,7 +111,7 @@ export function LoginPicker() {
               : "cursor-not-allowed border-border text-text-dim opacity-50"
           }`}
         >
-          Login
+          {t(UI.login)}
         </button>
       </div>
     </div>

@@ -1,8 +1,11 @@
 import { shortNodeLabel } from "../engine/nodeState";
 import { TRACE_HOT_THRESHOLD, TRACE_WARM_THRESHOLD } from "../engine/traceSystem";
+import { UI } from "../i18n/ui";
+import { useT } from "../i18n/useT";
 import { useCurrentNode, useGameStore } from "../store/gameStore";
 
 export function StatusBar() {
+  const t = useT();
   const node = useCurrentNode();
   const level = useGameStore((s) => s.level);
   const traceLevel = useGameStore((s) => s.traceLevel);
@@ -48,10 +51,10 @@ export function StatusBar() {
                   : "text-text-dim"
           }`}
         >
-          {burned ? "TRACE — BURNED" : `TRACE ${traceLevel}%`}
+          {burned ? t(UI.traceBurned) : `TRACE ${traceLevel}%`}
         </span>
       ) : (
-        <span className="shrink-0 whitespace-nowrap text-text-dim">TRACE — off</span>
+        <span className="shrink-0 whitespace-nowrap text-text-dim">{t(UI.traceOff)}</span>
       )}
     </header>
   );
