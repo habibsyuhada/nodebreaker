@@ -6,14 +6,14 @@ import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { BriefingDialog } from "./components/BriefingDialog";
 import { LanguagePicker } from "./components/LanguagePicker";
 import { LoginPicker } from "./components/LoginPicker";
+import { MonologueDialog } from "./components/MonologueDialog";
 import { NetworkMap } from "./components/NetworkMap";
 import { NetworkMapHint } from "./components/NetworkMapHint";
-import { NotificationToast } from "./components/NotificationToast";
+import { RestartLevelDialog } from "./components/RestartLevelDialog";
 import { StatusBar } from "./components/StatusBar";
 import { StoryScene } from "./components/StoryScene";
 import { TabBar } from "./components/TabBar";
 import { TRACE_HOT_THRESHOLD, TRACE_TICK_INTERVAL_MS } from "./engine/traceSystem";
-import { format } from "./i18n";
 import { UI } from "./i18n/ui";
 import { useT } from "./i18n/useT";
 import { LEVELS } from "./levels";
@@ -71,45 +71,6 @@ function TraceTicker() {
       markLevelComplete(level.id);
     }
   }, [levelComplete, level.id, markLevelComplete]);
-
-  return null;
-}
-
-/**
- * Watches useContextActions()'s cross-panel `notableActions` (login, post-access recon, pivot,
- * escalation, workbench — deliberately not the routine Close/Up/Search/per-selection-transform
- * chrome, which appears and disappears too often from ordinary navigation to be worth announcing)
- * and toasts any that weren't there a moment ago ("New action unlocked: X"). Cross-panel matters:
- * a fact discovered while reading a file can unlock Login on the Terminal panel, and a player who
- * isn't currently looking at the Terminal would otherwise never notice. The baseline resets
- * (silently, no toast) whenever the node/level changes or the mission briefing dismisses, so the
- * level's starting toolkit never fires as "new".
- */
-function ActionNotifier({ actions }: { actions: ContextAction[] }) {
-  const t = useT();
-  const pushNotification = useGameStore((s) => s.pushNotification);
-  const briefingActive = useGameStore((s) => s.briefingActive);
-  const currentNodeId = useGameStore((s) => s.currentNodeId);
-  const levelId = useGameStore((s) => s.level.id);
-  const seenIdsRef = useRef<Set<string> | null>(null);
-
-  useEffect(() => {
-    seenIdsRef.current = null;
-  }, [currentNodeId, levelId, briefingActive]);
-
-  useEffect(() => {
-    if (briefingActive) return;
-    const currentIds = new Set(actions.map((a) => a.id));
-    const seen = seenIdsRef.current;
-    if (seen) {
-      for (const action of actions) {
-        if (!seen.has(action.id)) {
-          pushNotification(format(t(UI.newActionUnlockedToast), { label: action.label }));
-        }
-      }
-    }
-    seenIdsRef.current = currentIds;
-  }, [actions, briefingActive, pushNotification, t]);
 
   return null;
 }
@@ -188,9 +149,12 @@ function SettingsPanel() {
   const t = useT();
   const resetProgress = useGameStore((s) => s.resetProgress);
   const setScreen = useGameStore((s) => s.setScreen);
+  const screen = useGameStore((s) => s.screen);
   const lang = useGameStore((s) => s.lang);
   const setLang = useGameStore((s) => s.setLang);
+  const openRestartConfirm = useGameStore((s) => s.openRestartConfirm);
   const [confirming, setConfirming] = useState(false);
+  const inGame = screen === "game";
 
   useEffect(() => {
     if (!confirming) return;
@@ -230,6 +194,15 @@ function SettingsPanel() {
           </button>
         </div>
       </div>
+      {inGame && (
+        <button
+          type="button"
+          onClick={openRestartConfirm}
+          className="min-h-[44px] rounded border border-warn/40 px-4 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"
+        >
+          {t(UI.restartLevel)}
+        </button>
+      )}
       <button
         type="button"
         onClick={() => {
@@ -255,18 +228,8 @@ function SettingsPanel() {
   );
 }
 
-interface ContextActionsResult {
-  /** Actions for whichever panel is currently active — what ActionBar renders. */
-  actions: ContextAction[];
-  /**
-   * Every `notable` action across all panels, computed regardless of which one is active — so
-   * ActionNotifier can catch e.g. Login becoming available on the Terminal panel while the player
-   * is sitting in Files. Deliberately NOT scoped to activePanel, unlike `actions`.
-   */
-  notableActions: ContextAction[];
-}
-
-function useContextActions(): ContextActionsResult {
+/** Actions for whichever panel is currently active — what ActionBar renders. */
+function useContextActions(): ContextAction[] {
   const activePanel = useGameStore((s) => s.activePanel);
   const openFilePath = useGameStore((s) => s.openFilePath);
   const inspectingPath = useGameStore((s) => s.inspectingPath);
@@ -309,7 +272,7 @@ function useContextActions(): ContextActionsResult {
   const levelComplete = useLevelComplete();
   const t = useT();
 
-  if (levelComplete || burned) return { actions: [], notableActions: [] };
+  if (levelComplete || burned) return [];
 
   const terminalActions: ContextAction[] = (() => {
     const actions: ContextAction[] = [{ id: "scan", label: t(UI.scanPorts), onClick: runScan }];
@@ -320,7 +283,7 @@ function useContextActions(): ContextActionsResult {
       actions.push({ id: "check-trace", label: t(UI.checkTrace), onClick: checkTrace });
     }
     if (accessGranted && !discovered["logs-deleted"] && !node.logFalsification) {
-      actions.push({ id: "delete-logs", label: t(UI.deleteLogs), onClick: deleteLogs, danger: true, notable: true });
+      actions.push({ id: "delete-logs", label: t(UI.deleteLogs), onClick: deleteLogs, danger: true });
     }
     if (node.logFalsification && accessGranted && !discovered["logs-falsified"]) {
       const ready = node.logFalsification.requiredFacts.every((f) => discovered[f]);
@@ -330,7 +293,6 @@ function useContextActions(): ContextActionsResult {
           label: node.logFalsification.label,
           onClick: falsifyLogs,
           danger: true,
-          notable: true,
         });
       }
     }
@@ -342,7 +304,6 @@ function useContextActions(): ContextActionsResult {
           id: `compare-${compare.id}`,
           label: compare.label,
           onClick: () => compareFiles(compare.id),
-          notable: true,
         });
       }
     }
@@ -353,7 +314,6 @@ function useContextActions(): ContextActionsResult {
           id: `pivot-${pivot.id}`,
           label: pivot.label,
           onClick: () => pivotTo(pivot.id),
-          notable: true,
         });
       }
     }
@@ -364,7 +324,6 @@ function useContextActions(): ContextActionsResult {
           id: `escalate-${esc.id}`,
           label: esc.label,
           onClick: () => escalatePrivilege(esc.id),
-          notable: true,
         });
       }
     }
@@ -375,7 +334,6 @@ function useContextActions(): ContextActionsResult {
           id: `backdoor-${bd.id}`,
           label: bd.label,
           onClick: () => plantBackdoor(bd.id),
-          notable: true,
         });
       }
     }
@@ -386,7 +344,7 @@ function useContextActions(): ContextActionsResult {
     if (node.quickLogin) {
       const loginReady = node.quickLogin.requiredFacts.every((f) => discovered[f]);
       if (loginReady) {
-        actions.push({ id: "login", label: node.quickLogin.label, onClick: attemptQuickLogin, notable: true });
+        actions.push({ id: "login", label: node.quickLogin.label, onClick: attemptQuickLogin });
       }
     } else if (!accessGranted) {
       const hasUsername = clues.some((c) => c.type === "username");
@@ -396,7 +354,6 @@ function useContextActions(): ContextActionsResult {
           id: "login",
           label: t(UI.login),
           onClick: () => setLoginPickerOpen(true),
-          notable: true,
         });
       }
     }
@@ -458,7 +415,6 @@ function useContextActions(): ContextActionsResult {
         id: "open-workbench",
         label: t(UI.workbench),
         onClick: () => setWorkbenchOpen(true),
-        notable: true,
       });
     }
     return actions;
@@ -471,10 +427,7 @@ function useContextActions(): ContextActionsResult {
     settings: [],
   };
 
-  return {
-    actions: byPanel[activePanel],
-    notableActions: [...terminalActions, ...filesActions, ...cluesActions].filter((a) => a.notable),
-  };
+  return byPanel[activePanel];
 }
 
 function ActivePanel() {
@@ -500,7 +453,7 @@ function ActivePanel() {
 
 function App() {
   const screen = useGameStore((s) => s.screen);
-  const { actions, notableActions } = useContextActions();
+  const actions = useContextActions();
 
   return (
     <div className="mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden bg-bg text-text">
@@ -511,17 +464,17 @@ function App() {
         {screen === "game" && (
           <>
             <TraceTicker />
-            <ActionNotifier actions={notableActions} />
             <StatusBar />
             <main className="min-h-0 flex-1 overflow-hidden">
               <ActivePanel />
             </main>
             <ActionBar actions={actions} />
             <TabBar />
-            <NotificationToast />
             <NetworkMapHint />
             <NetworkMap />
             <LoginPicker />
+            <MonologueDialog />
+            <RestartLevelDialog />
             <BriefingDialog />
             <StoryScene />
           </>
