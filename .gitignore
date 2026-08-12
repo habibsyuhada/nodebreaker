@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Bubblewrap/TWA: the Android Studio project + keystore are generated and signed in CI
+# from android/twa-manifest.json on every release run — only that config file is tracked.
+android/*
+!android/twa-manifest.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

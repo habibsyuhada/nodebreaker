@@ -1,0 +1,42 @@
+{
+  "packageId": "io.github.habibsyuhada.nodebreaker",
+  "host": "habibsyuhada.github.io",
+  "name": "NODEBREAKER",
+  "launcherName": "NODEBREAKER",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#0a0c10",
+  "themeColorDark": "#0a0c10",
+  "navigationColor": "#0a0c10",
+  "navigationColorDark": "#0a0c10",
+  "navigationDividerColor": "#00000000",
+  "navigationDividerColorDark": "#00000000",
+  "backgroundColor": "#0a0c10",
+  "enableNotifications": false,
+  "startUrl": "/nodebreaker/",
+  "iconUrl": "https://habibsyuhada.github.io/nodebreaker/icons/icon-512.png",
+  "maskableIconUrl": "https://habibsyuhada.github.io/nodebreaker/icons/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "upload"
+  },
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://habibsyuhada.github.io/nodebreaker/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://habibsyuhada.github.io/nodebreaker/",
+  "minSdkVersion": 21,
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": []
+}
