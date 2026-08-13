@@ -11,22 +11,11 @@ export const LEVEL_01: LevelDef = {
   ],
   entryNodeId: "router",
   successText: ["ACCESS GRANTED.", "You're in — admin panel unlocked.", "LEVEL 1 COMPLETE."],
+  coldOpen: true,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
     closer: { en: "Someone should even the line.", id: "Saatnya menyamakan jalur." },
     cards: [
-      {
-        id: "l1-context",
-        kind: "system",
-        channel: { en: "Building WiFi — Group Chat", id: "WiFi Gedung — Grup Chat" },
-        author: { en: "Building Admin (pinned)", id: "Admin Gedung (disematkan)" },
-        body: [
-          {
-            en: "Reminder: this line is shared across all six units. Outages? Contact your ISP, not the building.",
-            id: "Pengingat: jalur ini dipakai bersama oleh enam unit. Ada gangguan? Hubungi ISP kalian, bukan pengelola gedung.",
-          },
-        ],
-      },
       {
         id: "l1-harm",
         kind: "victim",
@@ -37,18 +26,6 @@ export const LEVEL_01: LevelDef = {
           {
             en: "My grandson's online class keeps dropping every night around 9. Same time, every time. Anyone else's connection doing this?",
             id: "Kelas online cucu saya putus terus setiap malam sekitar jam 9. Selalu jam segitu. Ada yang lain ngalamin ini juga?",
-          },
-        ],
-      },
-      {
-        id: "l1-brushoff",
-        kind: "system",
-        channel: { en: "Building WiFi — Group Chat", id: "WiFi Gedung — Grup Chat" },
-        author: { en: "Building Admin (pinned)", id: "Admin Gedung (disematkan)" },
-        body: [
-          {
-            en: "No outages reported on our end. Please contact your ISP.",
-            id: "Tidak ada laporan gangguan dari pihak kami. Silakan hubungi ISP Anda.",
           },
         ],
       },
@@ -109,19 +86,6 @@ export const LEVEL_01: LevelDef = {
           },
         ],
         answers: "l1-harm",
-      },
-      {
-        id: "l1-outro-cap",
-        kind: "system",
-        channel: { en: "Building WiFi — Group Chat", id: "WiFi Gedung — Grup Chat" },
-        author: { en: "Building Admin (pinned)", id: "Admin Gedung (disematkan)" },
-        body: [
-          {
-            en: "Bandwidth cap applied to unit 4B. Traffic now shared evenly across all six units.",
-            id: "Batas bandwidth diterapkan ke unit 4B. Lalu lintas kini dibagi rata ke enam unit.",
-          },
-        ],
-        answers: "l1-brushoff",
       },
       {
         id: "l1-outro-panic",

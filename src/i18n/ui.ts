@@ -14,9 +14,13 @@ export const UI = {
     en: "FIND THE OPENING. GET IN. STAY QUIET.",
     id: "CARI CELAHNYA. MASUK. DIAM-DIAM.",
   },
+  startBtn: { en: "START", id: "MULAI" },
   continueBtn: { en: "Continue", id: "Lanjutkan" },
   selectLevel: { en: "Select Level", id: "Pilih Level" },
   installApp: { en: "Install App", id: "Instal Aplikasi" },
+  switchToIndonesian: { en: "Bahasa Indonesia?", id: "Bahasa Indonesia?" },
+  switchToEnglish: { en: "English?", id: "English?" },
+  switchLangDismiss: { en: "×", id: "×" },
   settings: { en: "Settings", id: "Pengaturan" },
   exit: { en: "Exit", id: "Keluar" },
   connectionTerminated: { en: "CONNECTION TERMINATED", id: "KONEKSI DIPUTUS" },
@@ -193,6 +197,21 @@ export const UI = {
   gatedActionBlockedMonologue: {
     en: "Not yet — {label} still needs:",
     id: "Belum bisa — {label} masih butuh:",
+  },
+
+  // GestureCoach — idle-triggered hints, delivered through the same monologue channel as the
+  // lines above so they read as the player's own thought rather than a tutorial popup.
+  hintTapHoldInspect: {
+    en: "Might be worth holding my finger on one of these before opening it.",
+    id: "Ada baiknya saya tahan jari di salah satu ini dulu sebelum membukanya.",
+  },
+  hintSaveClue: {
+    en: "Anything useful in here is worth holding my finger on — keeps it in my notes.",
+    id: "Apa pun yang berguna di sini layak saya tahan jarinya — biar tersimpan di catatan.",
+  },
+  hintOpenWorkbench: {
+    en: "A couple of these clues might fit together. Worth trying them on the Workbench.",
+    id: "Beberapa petunjuk ini mungkin bisa digabung. Coba di Workbench.",
   },
 
   // RestartLevelDialog

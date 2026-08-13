@@ -238,4 +238,12 @@ export interface LevelDef {
   intro?: SceneDef;
   /** After-hack scene shown once the level completes — mirrors intro cards via SceneCard.answers. */
   outro?: SceneDef;
+  /**
+   * Skips BriefingDialog on load. Only meaningful when `briefing` alone is enough context to
+   * start playing — the same lines still get typed into the Terminal via `briefingLines()`, so
+   * nothing is lost, only the extra blocking tap. Meant for Level 1, where a first-time player's
+   * very first level shouldn't be gated behind a modal after already sitting through an intro
+   * scene.
+   */
+  coldOpen?: boolean;
 }

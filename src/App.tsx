@@ -4,7 +4,7 @@ import { Sprite } from "./art/spriteEngine";
 import { playAmbientPulse, playGlitch } from "./audio/synth";
 import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { BriefingDialog } from "./components/BriefingDialog";
-import { LanguagePicker } from "./components/LanguagePicker";
+import { GestureCoach } from "./components/GestureCoach";
 import { LoginPicker } from "./components/LoginPicker";
 import { MonologueDialog } from "./components/MonologueDialog";
 import { NetworkMap } from "./components/NetworkMap";
@@ -485,9 +485,13 @@ function ActivePanel() {
 function App() {
   const screen = useGameStore((s) => s.screen);
   const actions = useContextActions();
+  const touchInteraction = useGameStore((s) => s.touchInteraction);
 
   return (
-    <div className="mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden bg-bg text-text">
+    <div
+      onPointerDown={touchInteraction}
+      className="mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden bg-bg text-text"
+    >
       <div className="relative flex min-h-0 flex-1 flex-col">
         {screen === "menu" && <MainMenu />}
         {screen === "levels" && <LevelSelect />}
@@ -495,6 +499,7 @@ function App() {
         {screen === "game" && (
           <>
             <TraceTicker />
+            <GestureCoach />
             <StatusBar />
             <main className="min-h-0 flex-1 overflow-hidden">
               <ActivePanel />
@@ -511,7 +516,6 @@ function App() {
           </>
         )}
         <div className="scanlines" />
-        <LanguagePicker />
       </div>
     </div>
   );

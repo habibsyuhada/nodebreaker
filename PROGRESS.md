@@ -771,21 +771,103 @@ MainMenu speaker icon and the setting survives a reload; Settings shows the
 Sound toggle and a working volume slider; Level Select and Level 1's intro
 scene still render and navigate normally with no new console errors.
 
+### Stage 17 mechanics added — v1.0 round: first 90 seconds
+
+**Problem:** cold start was a stack of blocking overlays — `LanguagePicker`
+→ MainMenu → LevelSelect → Level 1's 5-card intro scene → `BriefingDialog` —
+before a player could touch anything. MainMenu's only real call to action for
+a brand-new player was "Select Level", one screen removed from actually
+playing. There was no way to mute audio (fixed in Stage 16) and no idle
+coaching at all — the original design brief called for a "subtle hint after
+45s idle" (`PROGRESS.md`'s brief section, "Aturan onboarding") that never
+shipped in the original 10-stage build.
+
+**Design & wiring:**
+- **Language stops blocking.** New `detectLang()` in `src/i18n/index.ts`
+  reads `navigator.language`; the store's initial `lang` and `merge`'s
+  fallback both use it instead of a hardcoded `"en"`. `LanguagePicker.tsx`
+  (the old full-screen first-run overlay) is deleted outright rather than
+  kept dormant — nothing referenced it once the blocking render in `App.tsx`
+  was removed. In its place, a small dismissable `LanguageChip` in
+  `MainMenu.tsx` offers a one-tap override of the auto-detected guess
+  ("Bahasa Indonesia?" / "English?" depending on current `lang`) with an
+  explicit `×` to dismiss without changing anything; either action sets
+  `langChosen` via the existing `setLang`, so the chip never reappears once
+  acted on. `langChosen` itself is repurposed from "gate the blocking
+  overlay" to "has the player ever confirmed or overridden the guess" — a
+  much lower-stakes flag now.
+- **Direct START path.** `MainMenu` shows a primary `START` button
+  (`loadLevel(0)` + `setScreen("game")`) for a player with no progress;
+  `Continue` takes its place once progress exists. `Select Level` is
+  secondary in both cases — removes a full screen from the cold path for
+  first-time players.
+- **`LevelDef.coldOpen?: boolean`** (`levels/types.ts`) — `loadLevel` sets
+  `briefingActive: !level.coldOpen`. The skipped dialog's lines aren't lost;
+  they still type into the Terminal via the existing `briefingLines()`, only
+  the extra blocking tap goes away. Level 1 sets `coldOpen: true` and its
+  `intro` was trimmed from 5 cards to 3 (dropped the scene-setting and
+  brush-off cards, keeping named-victim-harmed → perpetrator-gloating →
+  player's plan) — Stage 15's outro mirrors each intro card by id via
+  `answers`, so the now-orphaned `l1-outro-cap` (which mirrored the dropped
+  card) was removed too, keeping both scenes card-for-card symmetric at 3
+  cards each rather than leaving a dangling reference that would silently
+  drop its struck-through payoff line (`StoryScene`'s `findAnsweredLine`
+  degrades gracefully to no strikethrough on a miss, but that's a bug worth
+  avoiding, not a fallback worth relying on).
+- **Live-terminal title screen.** New `TitleTerminal.tsx`: a small,
+  self-contained typewriter boot sequence ("establishing local link...",
+  "shell ready.") rendered inline in `MainMenu`, deliberately not using the
+  store's `terminalLines` (that's game state, this is decoration). The
+  button stack is a sibling, not gated by this component in any way — it
+  renders and is tappable from the very first frame regardless of animation
+  progress. Tapping the boot-text block itself jumps straight to the
+  finished text, mirroring the in-game Terminal's own tap-to-skip. Extracted
+  the reduced-motion hook the in-game `Terminal.tsx` already had into shared
+  `src/hooks/usePrefersReducedMotion.ts` rather than duplicating it, since
+  both components now need the identical behavior.
+- **Idle gesture coaching.** Store gained `lastInteractionAt` (epoch ms,
+  transient — not persisted, restarting the idle window on reload is
+  harmless) and `touchInteraction()`, called from a single `onPointerDown`
+  on `App.tsx`'s root wrapper rather than one listener per component. New
+  `markDiscovered(fact)` generic store action so one-off guard flags don't
+  each need a bespoke action. New `GestureCoach.tsx` (mounted beside
+  `TraceTicker`, renders `null`): every 5s, if idle ≥ 45s, checks three
+  hints in priority order — browsing a directory with nothing discovered
+  yet (teaches tap-hold-to-inspect), a file open with zero clues saved
+  (teaches tap-hold-to-save), and ≥2 clues with the Workbench never opened
+  (teaches combining) — each derived from existing state with no new
+  tracking beyond the guard itself, and each gated to fire at most once per
+  level via a `discovered` fact (`hint-*-shown`). Delivered through the
+  existing `pushMonologue` "session notes" channel rather than a new popup,
+  so the in-fiction voice stays consistent and the project's "no tutorial
+  popups" rule holds — it reads as the player's own thought, not an
+  interruption.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint` (oxlint), `npm run build`
+all clean. Playwright pass at 390×800 confirmed: cold boot lands directly on
+MainMenu with `START` visible and the non-blocking language chip present, no
+blocking overlay; tapping `START` → 3-card intro → `Continue` lands directly
+in a live, playable Terminal with no `BriefingDialog` modal in between;
+`START` is clickable before the title terminal's boot animation finishes,
+and tapping the boot-text block skips it instantly. The idle-hint path was
+verified by installing Playwright's fake clock *before* navigating (a real
+`window.setInterval` created after a late clock install isn't retroactively
+captured by it, so the component's own interval would otherwise keep
+ticking on real wall-clock time) — navigated into a directory with nothing
+discovered, fast-forwarded 50s of virtual time, and confirmed the
+tap-hold-inspect hint appeared via `MonologueDialog`; dismissed it and
+fast-forwarded another 50s to confirm the same hint does not refire
+(guarded correctly by its `discovered` fact).
+
 ## What's next
 
-All 10 stages from the original build order, plus Stage 16 above, are done —
-the game is feature-complete and the v1.0 round's foundation stage has
+All 10 stages from the original build order, plus Stages 16–17 above, are
+done — the game is feature-complete and the v1.0 round's cold-start work has
 landed. Reasonable next moves if resuming work on this project (see the
-in-repo plan this session worked from for the full staged breakdown: cold
-start, run scoring, share cards, daily contracts, achievements, content
-i18n, and a second chapter of levels, roughly in that order):
+in-repo plan this session worked from for the full staged breakdown: run
+scoring, share cards, daily contracts, achievements, content i18n, and a
+second chapter of levels, roughly in that order):
 
-- **Stage 17 — first 90 seconds**: the cold start is still a stack of
-  blocking overlays (`LanguagePicker` → MainMenu → LevelSelect → intro scene
-  → briefing) before a player can touch anything. Auto-detect language
-  instead of blocking on it, add a direct START path into Level 1, and add
-  the idle-hint coaching the original design brief called for but never
-  shipped.
 - **Stage 18 — run scoring & grading**: no score, rank, or achievement exists
   yet; `RunResult`/`Rank` are typed and ready in `runMetrics.ts` but nothing
   computes or displays them.

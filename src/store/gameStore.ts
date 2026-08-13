@@ -13,7 +13,7 @@ import {
   traceLogFactId,
 } from "../engine/traceSystem";
 import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
-import { format, t as translate } from "../i18n";
+import { detectLang, format, t as translate } from "../i18n";
 import type { Lang } from "../i18n";
 import { UI } from "../i18n/ui";
 import { LEVELS } from "../levels";
@@ -205,9 +205,13 @@ interface GameState {
 
   /** UI language for scene content (SceneCard/SceneDef text) — persisted, doesn't affect other UI strings. */
   lang: Lang;
-  /** Sets lang and marks langChosen true — used by both the first-run LanguagePicker and the Settings toggle. */
+  /** Sets lang and marks langChosen true — used by both the Settings toggle and the MainMenu's dismissable language chip. */
   setLang: (lang: Lang) => void;
-  /** False until the player has ever picked a language (LanguagePicker or Settings) — gates a blocking first-run overlay above every screen. Persisted. */
+  /**
+   * False until the player has ever explicitly confirmed or overridden the auto-detected
+   * language — gates a small, non-blocking suggestion chip on MainMenu, not a first-run overlay.
+   * `lang` itself is always usable from the very first boot via `detectLang()`. Persisted.
+   */
   langChosen: boolean;
 
   /**
@@ -348,6 +352,17 @@ interface GameState {
 
   /** Wipes the localStorage save and returns to a fresh Level 1. */
   resetProgress: () => void;
+
+  /**
+   * Epoch ms of the last real pointer interaction anywhere in the app — updated by one listener
+   * on the app root (App.tsx), not per component. Drives GestureCoach's idle-hint timer. Reset by
+   * `loadLevel` so each level gets its own fresh idle window. Transient — not persisted, since
+   * restarting the idle timer after a reload is harmless.
+   */
+  lastInteractionAt: number;
+  touchInteraction: () => void;
+  /** Generic one-off fact setter — used by GestureCoach so its once-per-level hint guards don't need a bespoke store action each. */
+  markDiscovered: (fact: string) => void;
 }
 
 function briefingLines(level: LevelDef): TerminalLine[] {
@@ -414,7 +429,7 @@ export const useGameStore = create<GameState>()(
   briefingActive: true,
   dismissBriefing: () => set({ briefingActive: false }),
 
-  lang: "en",
+  lang: detectLang(),
   setLang: (lang) => set({ lang, langChosen: true }),
   langChosen: false,
 
@@ -839,7 +854,7 @@ export const useGameStore = create<GameState>()(
     const level = LEVELS[index];
     if (!level) return;
     set({
-      briefingActive: true,
+      briefingActive: !level.coldOpen,
       introActive: Boolean(level.intro),
       outroActive: false,
       monologueQueue: [],
@@ -872,6 +887,7 @@ export const useGameStore = create<GameState>()(
       transformFeedback: null,
       activePanel: "terminal",
       run: { ...DEFAULT_RUN },
+      lastInteractionAt: Date.now(),
     });
   },
 
@@ -1023,6 +1039,10 @@ export const useGameStore = create<GameState>()(
     set(freshAccount(get().profile));
     get().loadLevel(0);
   },
+
+  lastInteractionAt: Date.now(),
+  touchInteraction: () => set({ lastInteractionAt: Date.now() }),
+  markDiscovered: (fact) => set((state) => ({ discovered: { ...state.discovered, [fact]: true } })),
 }),
 {
   name: SAVE_KEY,
@@ -1072,7 +1092,7 @@ export const useGameStore = create<GameState>()(
       briefingActive: p.briefingActive ?? true,
       visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
       networkMapHintShown: p.networkMapHintShown ?? false,
-      lang: p.lang ?? "en",
+      lang: p.lang ?? detectLang(),
       langChosen: p.langChosen ?? false,
       introActive: p.introActive ?? false,
       outroActive: p.outroActive ?? false,
