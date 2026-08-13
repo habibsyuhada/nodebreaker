@@ -1,22 +1,34 @@
 import { UI } from "../i18n/ui";
 import { useT } from "../i18n/useT";
+import { isBossLevel } from "../levels/chapters";
 import { useGameStore } from "../store/gameStore";
 
 /**
- * One-time nudge toward the Network Map: appears automatically the first time a level's pivot
- * count shows the map is actually useful (more than one node visited), points at the now-tappable
- * NODE bar, and never appears again once dismissed — or once the player opens the map themselves
- * (setNetworkMapOpen marks the hint shown too, so finding it independently silences this).
+ * Nudge toward the Network Map: appears as soon as a multi-node level loads (once the
+ * briefing/intro is dismissed), points at the already-tappable NODE bar, and disappears once
+ * dismissed — or once the player opens the map themselves (setNetworkMapOpen marks it seen too,
+ * so finding it independently silences this). Deliberately shown before the player has pivoted
+ * anywhere: on a boss network with several independent branches, the map is how they decide which
+ * branch to pursue in the first place, not just a shortcut for backtracking.
+ *
+ * Regular multi-node levels only ever show this once, account-wide (`networkMapHintShown`) — the
+ * underlying UI doesn't change level to level, so teaching it once is enough. Boss levels re-arm
+ * it per level id (`bossMapHintDismissedIds`) instead: each boss is a much bigger, independent
+ * navigation decision than the last, so a player who dismissed the hint back on an early 2-node
+ * level still needs the reminder the first time they face a 6-7 node boss network.
  */
 export function NetworkMapHint() {
   const t = useT();
-  const shown = useGameStore((s) => s.networkMapHintShown);
+  const level = useGameStore((s) => s.level);
+  const boss = isBossLevel(level.id);
+  const networkMapHintShown = useGameStore((s) => s.networkMapHintShown);
+  const bossMapHintDismissedIds = useGameStore((s) => s.bossMapHintDismissedIds);
+  const shown = boss ? Boolean(bossMapHintDismissedIds[level.id]) : networkMapHintShown;
   const dismiss = useGameStore((s) => s.dismissNetworkMapHint);
-  const visitedCount = useGameStore((s) => Object.keys(s.visitedNodeIds).length);
   const briefingActive = useGameStore((s) => s.briefingActive);
   const networkMapOpen = useGameStore((s) => s.networkMapOpen);
 
-  if (shown || visitedCount <= 1 || briefingActive || networkMapOpen) return null;
+  if (shown || level.nodes.length <= 1 || briefingActive || networkMapOpen) return null;
 
   const [before, after] = t(UI.networkMapHintBody).split("{NODE}");
 

@@ -58,7 +58,6 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     name: { en: "Ghost Protocol", id: "Protokol Hantu" },
     description: { en: "Earn a GHOST rank on any level.", id: "Raih rank GHOST di level mana pun." },
     isEarned: (ctx) => ranksOf(ctx).includes("GHOST"),
-    rewardThemeId: "ch1-analyst",
   },
   {
     id: "ghost-sweep",
@@ -82,7 +81,6 @@ export const ACHIEVEMENTS: AchievementDef[] = [
         const best = ctx.bestRuns[l.id];
         return best !== undefined && best.elapsedMs / 1000 < (l.parSeconds ?? 240);
       }),
-    rewardThemeId: "ch3-analyst",
   },
   {
     id: "untouchable",
@@ -106,12 +104,14 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     name: { en: "Locksmith", id: "Tukang Kunci" },
     description: { en: "Crack 5 password hashes.", id: "Bongkar 5 hash password." },
     isEarned: (ctx) => counter(ctx, "hashesCracked") >= 5,
+    rewardThemeId: "ch1-analyst",
   },
   {
     id: "codebreaker",
     name: { en: "Codebreaker", id: "Pemecah Kode" },
     description: { en: "Decode 10 encoded clues.", id: "Decode 10 petunjuk terenkode." },
     isEarned: (ctx) => counter(ctx, "decodes") >= 10,
+    rewardThemeId: "ch3-analyst",
   },
   {
     id: "leak-hunter",

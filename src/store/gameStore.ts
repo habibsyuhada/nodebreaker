@@ -21,6 +21,7 @@ import { detectLang, format, t as translate } from "../i18n";
 import type { Lang, LocalizedText } from "../i18n";
 import { UI } from "../i18n/ui";
 import { LEVELS } from "../levels";
+import { isBossLevel } from "../levels/chapters";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
 
 export type PanelId = "terminal" | "files" | "clues" | "settings";
@@ -154,6 +155,7 @@ function freshAccount(current: ProfileState) {
   return {
     completedLevels: {} as Record<string, true>,
     networkMapHintShown: false,
+    bossMapHintDismissedIds: {} as Record<string, true>,
     profile: { ...DEFAULT_PROFILE, audio: { ...current.audio } },
     run: { ...DEFAULT_RUN },
   };
@@ -183,6 +185,23 @@ function computeLevelComplete(
 /** Fallback label for a missing fact when the level data doesn't supply a `requiredFactHints` entry. */
 function humanizeFact(fact: string, lang: Lang): string {
   return format(translate(UI.stillMissingFact, lang), { fact: fact.replace(/-/g, " ") });
+}
+
+/**
+ * Marks the Network Map hint as seen for the level currently in progress — boss levels track this
+ * per level id (so the hint re-arms on the next boss), everything else uses the single
+ * account-wide flag (so it's taught once, ever). See `bossMapHintDismissedIds`'s doc comment.
+ */
+function markNetworkMapHintSeen(
+  state: Pick<GameState, "level" | "networkMapHintShown" | "bossMapHintDismissedIds">,
+): Pick<GameState, "networkMapHintShown" | "bossMapHintDismissedIds"> {
+  if (isBossLevel(state.level.id)) {
+    return {
+      networkMapHintShown: state.networkMapHintShown,
+      bossMapHintDismissedIds: { ...state.bossMapHintDismissedIds, [state.level.id]: true },
+    };
+  }
+  return { networkMapHintShown: true, bossMapHintDismissedIds: state.bossMapHintDismissedIds };
 }
 
 /** Lines for a blocked gated action (privilege escalation / backdoor) — shown as a player monologue, not dumped to the terminal. */
@@ -286,10 +305,17 @@ interface GameState {
   setNetworkMapOpen: (open: boolean) => void;
   /**
    * Whether the player has ever opened the Network Map (persisted, account-wide — not per-level).
-   * Gates NetworkMapHint: it appears once, automatically, the first time a level's pivot count
-   * makes the map actually useful, and never again once the player has found it themselves.
+   * Gates NetworkMapHint on regular multi-node levels: shown once, ever, the first time such a
+   * level loads, and never again afterward.
    */
   networkMapHintShown: boolean;
+  /**
+   * Same idea as `networkMapHintShown`, but keyed per boss level id (persisted) instead of a
+   * single account-wide flag — a boss network is a bigger navigation decision each time it's
+   * fought (a handful of independent branches, not just one linear pivot chain), so the nudge
+   * re-arms for every boss even after the player has long since dismissed the generic one.
+   */
+  bossMapHintDismissedIds: Record<string, true>;
   dismissNetworkMapHint: () => void;
 
   currentPath: string[];
@@ -499,6 +525,7 @@ interface PersistedState {
   briefingActive: boolean;
   visitedNodeIds: Record<string, true>;
   networkMapHintShown: boolean;
+  bossMapHintDismissedIds: Record<string, true>;
   lang: Lang;
   langChosen: boolean;
   introActive: boolean;
@@ -615,11 +642,16 @@ export const useGameStore = create<GameState>()(
   visitedNodeIds: { [LEVELS[0].entryNodeId]: true },
   networkMapOpen: false,
   setNetworkMapOpen: (open) => {
-    set({ networkMapOpen: open, networkMapHintShown: open || get().networkMapHintShown });
-    if (open) get().bumpCounter("networkMapOpens");
+    if (open) {
+      set((state) => ({ networkMapOpen: open, ...markNetworkMapHintSeen(state) }));
+      get().bumpCounter("networkMapOpens");
+    } else {
+      set({ networkMapOpen: open });
+    }
   },
   networkMapHintShown: false,
-  dismissNetworkMapHint: () => set({ networkMapHintShown: true }),
+  bossMapHintDismissedIds: {},
+  dismissNetworkMapHint: () => set((state) => markNetworkMapHintSeen(state)),
   currentPath: [],
   openFilePath: null,
   inspectingPath: null,
@@ -1315,6 +1347,7 @@ export const useGameStore = create<GameState>()(
     briefingActive: state.briefingActive,
     visitedNodeIds: state.visitedNodeIds,
     networkMapHintShown: state.networkMapHintShown,
+    bossMapHintDismissedIds: state.bossMapHintDismissedIds,
     lang: state.lang,
     langChosen: state.langChosen,
     introActive: state.introActive,
@@ -1354,6 +1387,7 @@ export const useGameStore = create<GameState>()(
       briefingActive: p.briefingActive ?? true,
       visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
       networkMapHintShown: p.networkMapHintShown ?? false,
+      bossMapHintDismissedIds: p.bossMapHintDismissedIds ?? {},
       lang,
       langChosen: p.langChosen ?? false,
       introActive: p.introActive ?? false,

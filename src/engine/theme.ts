@@ -115,8 +115,8 @@ export const THEMES: Theme[] = [
     id: "ch1-analyst",
     name: { en: "Rounding Error", id: "Selisih Pembulatan" },
     hint: {
-      en: "Unlock: achievement — Ghost Protocol.",
-      id: "Unlock: achievement — Protokol Hantu.",
+      en: "Unlock: achievement — Locksmith.",
+      id: "Unlock: achievement — Tukang Kunci.",
     },
     colors: {
       bg: "#0e0b08",
@@ -239,7 +239,7 @@ export const THEMES: Theme[] = [
   {
     id: "ch3-analyst",
     name: { en: "Ultraviolet", id: "Ultraviolet" },
-    hint: { en: "Unlock: achievement — Speedrunner.", id: "Unlock: achievement — Pelari Cepat." },
+    hint: { en: "Unlock: achievement — Codebreaker.", id: "Unlock: achievement — Pemecah Kode." },
     colors: {
       bg: "#0a0810",
       panel: "#0e0c17",
