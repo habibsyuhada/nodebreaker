@@ -121,6 +121,7 @@ export const UI = {
   close: { en: "Close", id: "Tutup" },
   here: { en: "HERE", id: "DI SINI" },
   visited: { en: "VISITED", id: "DIKUNJUNGI" },
+  pivotAvailable: { en: "PIVOT", id: "PIVOT" },
 
   // NetworkMapHint — {NODE} marks where the accent-colored "NODE" word is inserted, since the
   // two languages order it differently around "bar" ("the NODE bar" vs "bar NODE").
