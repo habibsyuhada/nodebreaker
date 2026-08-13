@@ -48,6 +48,25 @@ export const CHAPTERS: ChapterDef[] = [
     ],
     bossLevelId: "level-16",
   },
+  {
+    id: "chapter-3",
+    title: { en: "Chapter 3 — Civic OS", id: "Chapter 3 — Civic OS" },
+    tagline: {
+      en: "A smart-city contractor decides whose lights, buses, and calls get priority.",
+      id: "Kontraktor kota pintar menentukan siapa yang diprioritaskan — lampu, bus, dan panggilan darurat.",
+    },
+    levelIds: [
+      "level-17",
+      "level-18",
+      "level-19",
+      "level-20",
+      "level-21",
+      "level-22",
+      "level-23",
+      "level-24",
+    ],
+    bossLevelId: "level-24",
+  },
 ];
 
 export function chapterOf(levelId: string): ChapterDef | undefined {

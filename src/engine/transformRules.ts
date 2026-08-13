@@ -31,6 +31,23 @@ const DECODE_RECIPES: Record<string, CombineResult> = {
     value: atob("QzBhc3RhbCNCcmlkZ2U="),
     label: "Decoded rotation pattern from the vendor onboarding notes",
   },
+  // Double-encoded chain (Chapter 3's "chained decode" twist) — decoding this once yields
+  // ANOTHER encoded clue, not the final value; the player has to decode it a second time.
+  "V2pCdVpWUm9jakIwZEd4bEl6VT0=": {
+    type: "encoded",
+    value: atob("V2pCdVpWUm9jakIwZEd4bEl6VT0="),
+    label: "First layer decoded — still encoded, needs a second pass",
+  },
+  "WjBuZVRocjB0dGxlIzU=": {
+    type: "password",
+    value: atob("WjBuZVRocjB0dGxlIzU="),
+    label: "Second layer decoded from the fare-zone config",
+  },
+  "VDBsbExpbmUjUm91dGU=": {
+    type: "pattern",
+    value: atob("VDBsbExpbmUjUm91dGU="),
+    label: "Decoded rotation pattern from the vendor onboarding notes",
+  },
 };
 
 /** Keyed by the exact hash clue value — simulates a cracker matching against a known wordlist. */
@@ -67,6 +84,11 @@ const LEAK_RECIPES: Record<string, CombineResult> = {
   "tokafor@alamedaregional.org": {
     type: "password",
     value: "Riverbank77!",
+    label: "Found in a public breach dump — this account reuses it",
+  },
+  "dpatel@ferroviasystems.com": {
+    type: "password",
+    value: "Volt$urge42",
     label: "Found in a public breach dump — this account reuses it",
   },
 };

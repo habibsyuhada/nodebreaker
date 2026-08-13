@@ -16,6 +16,15 @@ import { LEVEL_13 } from "./level13";
 import { LEVEL_14 } from "./level14";
 import { LEVEL_15 } from "./level15";
 import { LEVEL_16 } from "./level16";
+// Chapter 3
+import { LEVEL_17 } from "./level17";
+import { LEVEL_18 } from "./level18";
+import { LEVEL_19 } from "./level19";
+import { LEVEL_20 } from "./level20";
+import { LEVEL_21 } from "./level21";
+import { LEVEL_22 } from "./level22";
+import { LEVEL_23 } from "./level23";
+import { LEVEL_24 } from "./level24";
 import type { LevelDef } from "./types";
 
 export const LEVELS: LevelDef[] = [
@@ -35,6 +44,14 @@ export const LEVELS: LevelDef[] = [
   LEVEL_14,
   LEVEL_15,
   LEVEL_16,
+  LEVEL_17,
+  LEVEL_18,
+  LEVEL_19,
+  LEVEL_20,
+  LEVEL_21,
+  LEVEL_22,
+  LEVEL_23,
+  LEVEL_24,
 ];
 
 export type { LevelDef } from "./types";
