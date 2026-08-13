@@ -242,4 +242,23 @@ export const UI = {
     en: "Pull the plug on this run? Every login, backdoor, and export I've made here resets — I'd be breaking in from scratch.",
     id: "Putus sesi ini sekarang? Semua login, backdoor, dan data yang sudah saya ambil di sini bakal reset — saya harus masuk dari awal lagi.",
   },
+
+  // OpsRecord (Stage 21) — MainMenu entry point + the achievements/stats screen itself
+  opsRecord: { en: "Ops Record", id: "Catatan Operasi" },
+  opsRecordTitle: { en: "OPS RECORD", id: "CATATAN OPERASI" },
+  opsRecordProgress: { en: "{n} / {total} unlocked", id: "{n} / {total} terbuka" },
+  achievementUnlockedMonologue: {
+    en: "Achievement unlocked: {name}",
+    id: "Pencapaian terbuka: {name}",
+  },
+  dailyStreakLabel: { en: "DAILY CONTRACT STREAK", id: "RENTETAN KONTRAK HARIAN" },
+  dailyStreakBest: { en: "Best: {n}", id: "Terbaik: {n}" },
+  dailyStreakCurrent: { en: "{n}-day streak", id: "Rentetan {n} hari" },
+
+  // Daily Contract (Stage 22)
+  dailyContract: { en: "Daily Contract", id: "Kontrak Harian" },
+  dailyContractDoneToday: {
+    en: "Today's contract is done. Come back after 00:00 UTC.",
+    id: "Kontrak hari ini sudah selesai. Kembali setelah 00:00 UTC.",
+  },
 } satisfies Record<string, LocalizedText>;

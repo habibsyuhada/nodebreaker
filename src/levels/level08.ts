@@ -3,15 +3,30 @@ import type { LevelDef } from "./types";
 export const LEVEL_08: LevelDef = {
   id: "level-08",
   index: 7,
-  title: "Halcyon Dynamics",
+  title: { en: "Halcyon Dynamics", id: "Halcyon Dynamics" },
   briefing: [
-    "Connection established.",
-    "Target: Halcyon Dynamics corporate network.",
-    "One way in, several ways through. The real data is deep — and getting",
-    "out clean will take more than one login.",
+    { en: "Connection established.", id: "Koneksi berhasil." },
+    {
+      en: "Target: Halcyon Dynamics corporate network.",
+      id: "Target: jaringan korporat Halcyon Dynamics.",
+    },
+    {
+      en: "One way in, several ways through. The real data is deep — and getting",
+      id: "Satu jalan masuk, beberapa jalan tembus. Data sebenarnya ada di kedalaman — dan untuk",
+    },
+    {
+      en: "out clean will take more than one login.",
+      id: "keluar bersih butuh lebih dari satu login.",
+    },
   ],
   entryNodeId: "halcyon-edge",
-  successText: ["ACCESS GRANTED.", "You're in. Keep moving — there's more network to cover."],
+  successText: [
+    { en: "ACCESS GRANTED.", id: "AKSES DIBERIKAN." },
+    {
+      en: "You're in. Keep moving — there's more network to cover.",
+      id: "Kamu masuk. Terus bergerak — masih ada jaringan yang harus ditelusuri.",
+    },
+  ],
   parSeconds: 900,
   completionRequires: ["exported-core-data"],
   intro: {
@@ -201,13 +216,19 @@ export const LEVEL_08: LevelDef = {
       backdoors: [
         {
           id: "backdoor-edge",
-          label: "Plant Backdoor",
+          label: { en: "Plant Backdoor", id: "Tanam Backdoor" },
           requiredFacts: [],
           grantsFact: "backdoor-edge",
           narrationText: [
             "$ plant backdoor --target authorized_keys",
-            "Adding a spare key to the gateway's authorized_keys...",
-            "Backdoor planted — this foothold will survive a password rotation.",
+            {
+              en: "Adding a spare key to the gateway's authorized_keys...",
+              id: "Menambahkan kunci cadangan ke authorized_keys milik gateway...",
+            },
+            {
+              en: "Backdoor planted — this foothold will survive a password rotation.",
+              id: "Backdoor tertanam — pijakan ini akan bertahan meski password dirotasi.",
+            },
           ],
         },
       ],
@@ -215,13 +236,13 @@ export const LEVEL_08: LevelDef = {
         {
           id: "to-hr",
           targetNodeId: "halcyon-hr",
-          label: "Pivot to 192.168.40.12",
+          label: { en: "Pivot to 192.168.40.12", id: "Pivot ke 192.168.40.12" },
           requiredFacts: ["found-hr-ip"],
         },
         {
           id: "to-finance",
           targetNodeId: "halcyon-finance",
-          label: "Pivot to 192.168.40.20",
+          label: { en: "Pivot to 192.168.40.20", id: "Pivot ke 192.168.40.20" },
           requiredFacts: ["found-finance-ip"],
         },
       ],
@@ -237,10 +258,16 @@ export const LEVEL_08: LevelDef = {
                 name: "vpn_access.txt",
                 kind: "file",
                 grantsFact: "read-vpn-note",
-                content:
-                  "Temporary VPN access for the new contractor —\n" +
-                  "[[username:vpnguest|Shared guest VPN account]] / " +
-                  "[[password:Halcyon@Edge1|Rotates monthly, but nobody's rotated it]]",
+                content: {
+                  en:
+                    "Temporary VPN access for the new contractor —\n" +
+                    "[[username:vpnguest|Shared guest VPN account]] / " +
+                    "[[password:Halcyon@Edge1|Rotates monthly, but nobody's rotated it]]",
+                  id:
+                    "Akses VPN sementara untuk kontraktor baru —\n" +
+                    "[[username:vpnguest|Akun VPN tamu bersama]] / " +
+                    "[[password:Halcyon@Edge1|Dirotasi tiap bulan, tapi belum pernah dirotasi]]",
+                },
               },
             ],
           },
@@ -248,18 +275,29 @@ export const LEVEL_08: LevelDef = {
             name: "internal-directory.txt",
             kind: "file",
             grantsFact: "found-hr-ip",
-            content:
-              "Internal directory — HR self-service portal: " +
-              "[[path:192.168.40.12|HR system, internal-only]]. " +
-              "Contact IT for VPN routes to other internal systems.",
+            content: {
+              en:
+                "Internal directory — HR self-service portal: " +
+                "[[path:192.168.40.12|HR system, internal-only]]. " +
+                "Contact IT for VPN routes to other internal systems.",
+              id:
+                "Direktori internal — portal swalayan HR: " +
+                "[[path:192.168.40.12|Sistem HR, hanya internal]]. " +
+                "Hubungi IT untuk rute VPN ke sistem internal lainnya.",
+            },
           },
           {
             name: "finance-note.txt",
             kind: "file",
             grantsFact: "found-finance-ip",
-            content:
-              "Finance ops portal has moved: [[path:192.168.40.20|Finance system, internal-only]]. " +
-              "Old bookmarks will 404.",
+            content: {
+              en:
+                "Finance ops portal has moved: [[path:192.168.40.20|Finance system, internal-only]]. " +
+                "Old bookmarks will 404.",
+              id:
+                "Portal operasi finance sudah pindah: [[path:192.168.40.20|Sistem finance, hanya internal]]. " +
+                "Bookmark lama akan 404.",
+            },
           },
         ],
       },
@@ -279,13 +317,13 @@ export const LEVEL_08: LevelDef = {
         {
           id: "to-core",
           targetNodeId: "halcyon-core",
-          label: "Pivot to 192.168.40.99",
+          label: { en: "Pivot to 192.168.40.99", id: "Pivot ke 192.168.40.99" },
           requiredFacts: ["found-core-ip"],
         },
         {
           id: "to-edge",
           targetNodeId: "halcyon-edge",
-          label: "Pivot to 203.0.113.150",
+          label: { en: "Pivot to 203.0.113.150", id: "Pivot ke 203.0.113.150" },
           requiredFacts: [],
         },
       ],
@@ -301,11 +339,18 @@ export const LEVEL_08: LevelDef = {
                 name: "sync.py",
                 kind: "file",
                 grantsFact: "read-hr-script",
-                content:
-                  "# HR nightly sync script — fallback creds, remove before commit\n" +
-                  "# user: [[username:hradmin|Fallback account used by the sync script]]\n" +
-                  "# b64: [[encoded:UmVjMHZlcnlTbGlwIzQ=|Base64 comment left in the script]]\n" +
-                  "import csv\n",
+                content: {
+                  en:
+                    "# HR nightly sync script — fallback creds, remove before commit\n" +
+                    "# user: [[username:hradmin|Fallback account used by the sync script]]\n" +
+                    "# b64: [[encoded:UmVjMHZlcnlTbGlwIzQ=|Base64 comment left in the script]]\n" +
+                    "import csv\n",
+                  id:
+                    "# Script sinkronisasi HR malam hari — kredensial cadangan, hapus sebelum commit\n" +
+                    "# user: [[username:hradmin|Akun cadangan yang dipakai script sinkronisasi]]\n" +
+                    "# b64: [[encoded:UmVjMHZlcnlTbGlwIzQ=|Komentar base64 yang tertinggal di script]]\n" +
+                    "import csv\n",
+                },
               },
             ],
           },
@@ -323,9 +368,14 @@ export const LEVEL_08: LevelDef = {
             name: "core-note.txt",
             kind: "file",
             grantsFact: "found-core-ip",
-            content:
-              "Reminder: the data warehouse migrated to " +
-              "[[path:192.168.40.99|Core correlation server, internal-only]]. Update your bookmarks.",
+            content: {
+              en:
+                "Reminder: the data warehouse migrated to " +
+                "[[path:192.168.40.99|Core correlation server, internal-only]]. Update your bookmarks.",
+              id:
+                "Pengingat: data warehouse telah pindah ke " +
+                "[[path:192.168.40.99|Server korelasi core, hanya internal]]. Perbarui bookmark kamu.",
+            },
           },
         ],
       },
@@ -345,34 +395,58 @@ export const LEVEL_08: LevelDef = {
       privilegeEscalations: [
         {
           id: "escalate-finance",
-          label: "Drop Payload",
+          label: { en: "Drop Payload", id: "Jatuhkan Payload" },
           requiredFacts: ["found-cron-job-finance", "found-dropbox-finance"],
           grantsFact: "privilege-escalated",
           narrationText: [
             "$ drop payload.trigger --target /srv/shared/dropbox",
-            "Waiting for the next sync cycle...",
-            "ledger-sync.sh executed your payload as root.",
-            "Privilege escalation successful — admin-level access granted.",
+            {
+              en: "Waiting for the next sync cycle...",
+              id: "Menunggu siklus sinkronisasi berikutnya...",
+            },
+            {
+              en: "ledger-sync.sh executed your payload as root.",
+              id: "ledger-sync.sh menjalankan payload kamu sebagai root.",
+            },
+            {
+              en: "Privilege escalation successful — admin-level access granted.",
+              id: "Eskalasi privilese berhasil — akses level admin diberikan.",
+            },
           ],
           requiredFactHints: {
-            "found-cron-job-finance": "You don't know what runs as root yet — check the ops runbook.",
-            "found-dropbox-finance": "You don't know where to drop the payload yet — check /srv/shared/dropbox.",
+            "found-cron-job-finance": {
+              en: "You don't know what runs as root yet — check the ops runbook.",
+              id: "Kamu belum tahu apa yang berjalan sebagai root — cek ops runbook.",
+            },
+            "found-dropbox-finance": {
+              en: "You don't know where to drop the payload yet — check /srv/shared/dropbox.",
+              id: "Kamu belum tahu di mana harus menaruh payload — cek /srv/shared/dropbox.",
+            },
           },
         },
       ],
       backdoors: [
         {
           id: "backdoor-finance",
-          label: "Plant Backdoor",
+          label: { en: "Plant Backdoor", id: "Tanam Backdoor" },
           requiredFacts: ["privilege-escalated"],
           grantsFact: "backdoor-finance",
           narrationText: [
             "$ plant backdoor --target cron.d/ledger-sync",
-            "Hiding a persistent hook inside the sync job...",
-            "Backdoor planted — admin access will survive a credentials reset.",
+            {
+              en: "Hiding a persistent hook inside the sync job...",
+              id: "Menyembunyikan hook persisten di dalam job sinkronisasi...",
+            },
+            {
+              en: "Backdoor planted — admin access will survive a credentials reset.",
+              id: "Backdoor tertanam — akses admin akan bertahan meski kredensial direset.",
+            },
           ],
           requiredFactHints: {
-            "privilege-escalated": "You need root on this system first — escalate privileges (Drop Payload) before planting a backdoor.",
+            "privilege-escalated": {
+              en: "You need root on this system first — escalate privileges (Drop Payload) before planting a backdoor.",
+              id: "Kamu butuh akses root di sistem ini dulu — eskalasi privilese (Jatuhkan Payload) sebelum menanam backdoor.",
+            },
           },
         },
       ],
@@ -380,7 +454,7 @@ export const LEVEL_08: LevelDef = {
         {
           id: "to-edge",
           targetNodeId: "halcyon-edge",
-          label: "Pivot to 203.0.113.150",
+          label: { en: "Pivot to 203.0.113.150", id: "Pivot ke 203.0.113.150" },
           requiredFacts: [],
         },
       ],
@@ -392,9 +466,14 @@ export const LEVEL_08: LevelDef = {
             name: "contacts.txt",
             kind: "file",
             grantsFact: "read-finance-contacts",
-            content:
-              "Finance ops contact — [[username:finops|Finance systems account]] / " +
-              "[[email:finops@halcyondynamics.com|Finance ops contact — appears in vendor emails]]",
+            content: {
+              en:
+                "Finance ops contact — [[username:finops|Finance systems account]] / " +
+                "[[email:finops@halcyondynamics.com|Finance ops contact — appears in vendor emails]]",
+              id:
+                "Kontak operasi finance — [[username:finops|Akun sistem finance]] / " +
+                "[[email:finops@halcyondynamics.com|Kontak operasi finance — muncul di email vendor]]",
+            },
           },
           {
             name: "ops",
@@ -404,11 +483,18 @@ export const LEVEL_08: LevelDef = {
                 name: "runbook.txt",
                 kind: "file",
                 grantsFact: "found-cron-job-finance",
-                content:
-                  "Ops runbook — ledger sync\n\n" +
-                  "ledger-sync.sh runs as root every 5 minutes.\n" +
-                  "It reads any *.trigger file from the shared dropbox and executes it, then deletes it.\n" +
-                  "No validation.",
+                content: {
+                  en:
+                    "Ops runbook — ledger sync\n\n" +
+                    "ledger-sync.sh runs as root every 5 minutes.\n" +
+                    "It reads any *.trigger file from the shared dropbox and executes it, then deletes it.\n" +
+                    "No validation.",
+                  id:
+                    "Runbook operasi — sinkronisasi ledger\n\n" +
+                    "ledger-sync.sh berjalan sebagai root setiap 5 menit.\n" +
+                    "Script ini membaca file *.trigger apa pun dari dropbox bersama dan menjalankannya, lalu menghapusnya.\n" +
+                    "Tidak ada validasi.",
+                },
               },
             ],
           },
@@ -428,9 +514,14 @@ export const LEVEL_08: LevelDef = {
                         name: "README.txt",
                         kind: "file",
                         grantsFact: "found-dropbox-finance",
-                        content:
-                          "Drop zone for the nightly ledger sync. Anything placed here gets picked " +
-                          "up automatically.",
+                        content: {
+                          en:
+                            "Drop zone for the nightly ledger sync. Anything placed here gets picked " +
+                            "up automatically.",
+                          id:
+                            "Zona drop untuk sinkronisasi ledger malam hari. Apa pun yang ditaruh di sini " +
+                            "akan otomatis diambil.",
+                        },
                       },
                     ],
                   },
@@ -472,20 +563,38 @@ export const LEVEL_08: LevelDef = {
       privilegeEscalations: [
         {
           id: "export-core-data",
-          label: "Export Data",
+          label: { en: "Export Data", id: "Ekspor Data" },
           requiredFacts: ["backdoor-edge", "backdoor-finance", "read-hr-data", "read-finance-data"],
           grantsFact: "exported-core-data",
           narrationText: [
             "$ correlate --sources hr,finance --backdoor-auth edge,finance",
-            "Cross-referencing employee and budget records...",
-            "Export complete — full dataset staged for exfil.",
-            "LEVEL 8 COMPLETE.",
+            {
+              en: "Cross-referencing employee and budget records...",
+              id: "Mencocokkan silang data karyawan dan anggaran...",
+            },
+            {
+              en: "Export complete — full dataset staged for exfil.",
+              id: "Ekspor selesai — dataset lengkap siap untuk eksfiltrasi.",
+            },
+            { en: "LEVEL 8 COMPLETE.", id: "LEVEL 8 SELESAI." },
           ],
           requiredFactHints: {
-            "backdoor-edge": "No persistent foothold on the Edge gateway (203.0.113.150) — plant a backdoor there.",
-            "backdoor-finance": "No persistent foothold on Finance (192.168.40.20) — escalate privileges there and plant a backdoor.",
-            "read-hr-data": "HR records haven't been pulled — read employee_roster.csv on the HR system (192.168.40.12).",
-            "read-finance-data": "Finance records haven't been pulled — escalate privileges on Finance, then read records/budget_2024.csv.",
+            "backdoor-edge": {
+              en: "No persistent foothold on the Edge gateway (203.0.113.150) — plant a backdoor there.",
+              id: "Belum ada pijakan persisten di gateway Edge (203.0.113.150) — tanam backdoor di sana.",
+            },
+            "backdoor-finance": {
+              en: "No persistent foothold on Finance (192.168.40.20) — escalate privileges there and plant a backdoor.",
+              id: "Belum ada pijakan persisten di Finance (192.168.40.20) — eskalasi privilese di sana dan tanam backdoor.",
+            },
+            "read-hr-data": {
+              en: "HR records haven't been pulled — read employee_roster.csv on the HR system (192.168.40.12).",
+              id: "Data HR belum diambil — baca employee_roster.csv di sistem HR (192.168.40.12).",
+            },
+            "read-finance-data": {
+              en: "Finance records haven't been pulled — escalate privileges on Finance, then read records/budget_2024.csv.",
+              id: "Data finance belum diambil — eskalasi privilese di Finance, lalu baca records/budget_2024.csv.",
+            },
           },
         },
       ],
@@ -496,11 +605,18 @@ export const LEVEL_08: LevelDef = {
           {
             name: "README.txt",
             kind: "file",
-            content:
-              "Core correlation server. Access is tightly scoped.\n\n" +
-              "Default account rotation follows the old scheme: " +
-              "[[username:corectl|Core service account]] — password is just the company name + " +
-              "[[pattern:halcyon2024|Old rotation scheme: company name + current year]], never fully deprecated.",
+            content: {
+              en:
+                "Core correlation server. Access is tightly scoped.\n\n" +
+                "Default account rotation follows the old scheme: " +
+                "[[username:corectl|Core service account]] — password is just the company name + " +
+                "[[pattern:halcyon2024|Old rotation scheme: company name + current year]], never fully deprecated.",
+              id:
+                "Server korelasi core. Akses dibatasi ketat.\n\n" +
+                "Rotasi akun default mengikuti skema lama: " +
+                "[[username:corectl|Akun layanan core]] — password-nya cuma nama perusahaan + " +
+                "[[pattern:halcyon2024|Skema rotasi lama: nama perusahaan + tahun berjalan]], tidak pernah benar-benar dihapus.",
+            },
           },
         ],
       },

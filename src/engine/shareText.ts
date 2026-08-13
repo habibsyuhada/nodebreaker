@@ -27,7 +27,9 @@ function traceBar(peakTrace: number): string {
  * already public in LevelSelect before the level is ever played.
  */
 export function buildShareText(level: LevelDef, result: RunResult, lang: Lang): string {
-  const label = `Level ${level.index + 1} — ${t(level.title, lang)}`;
+  // Campaign levels get a "Level N —" prefix; a Daily Contract's title already says what it is
+  // (see `generateDailyContract`) and isn't a real LEVELS index, so level.index is negative for it.
+  const label = level.index >= 0 ? `Level ${level.index + 1} — ${t(level.title, lang)}` : t(level.title, lang);
   return [
     `NODEBREAKER · ${label}`,
     `${result.rank} — ${formatDuration(result.elapsedMs)}`,

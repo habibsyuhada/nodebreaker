@@ -3,14 +3,21 @@ import type { LevelDef } from "./types";
 export const LEVEL_05: LevelDef = {
   id: "level-05",
   index: 4,
-  title: "Riverside Health",
+  title: { en: "Riverside Health", id: "Riverside Health" },
   briefing: [
-    "Connection established.",
-    "Target: Riverside Health.",
-    "The patient portal is public-facing — the real records live somewhere else.",
+    { en: "Connection established.", id: "Koneksi berhasil." },
+    { en: "Target: Riverside Health.", id: "Target: Riverside Health." },
+    {
+      en: "The patient portal is public-facing — the real records live somewhere else.",
+      id: "Portal pasien ini terbuka untuk publik — rekam medis yang asli ada di tempat lain.",
+    },
   ],
   entryNodeId: "riverside-public",
-  successText: ["ACCESS GRANTED.", "You're in — internal ops dashboard unlocked.", "LEVEL 5 COMPLETE."],
+  successText: [
+    { en: "ACCESS GRANTED.", id: "AKSES DIBERIKAN." },
+    { en: "You're in — internal ops dashboard unlocked.", id: "Kamu masuk — dashboard ops internal terbuka." },
+    { en: "LEVEL 5 COMPLETE.", id: "LEVEL 5 SELESAI." },
+  ],
   parSeconds: 260,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
@@ -163,7 +170,7 @@ export const LEVEL_05: LevelDef = {
         {
           id: "to-internal",
           targetNodeId: "riverside-internal",
-          label: "Pivot to 192.168.20.5",
+          label: { en: "Pivot to 192.168.20.5", id: "Pivot ke 192.168.20.5" },
           requiredFacts: ["found-internal-ip"],
         },
       ],
@@ -174,30 +181,48 @@ export const LEVEL_05: LevelDef = {
           {
             name: "about.txt",
             kind: "file",
-            content:
-              "Riverside Health patient portal.\nBook appointments, view test results, message your care team.",
+            content: {
+              en: "Riverside Health patient portal.\nBook appointments, view test results, message your care team.",
+              id: "Portal pasien Riverside Health.\nBuat janji temu, lihat hasil tes, kirim pesan ke tim perawatanmu.",
+            },
           },
           {
             name: "contact.txt",
             kind: "file",
             grantsFact: "read-staff-contacts",
-            content:
-              "Need help logging into the patient app?\n\n" +
-              "IT Support — [[username:jwilson|Also used for internal systems]] / " +
-              "[[email:jwilson@riversidehealth.org|IT support contact — listed on several public pages]]\n" +
-              "Front Desk — reception@riversidehealth.org\n" +
-              "Billing — billing@riversidehealth.org",
+            content: {
+              en:
+                "Need help logging into the patient app?\n\n" +
+                "IT Support — [[username:jwilson|Also used for internal systems]] / " +
+                "[[email:jwilson@riversidehealth.org|IT support contact — listed on several public pages]]\n" +
+                "Front Desk — reception@riversidehealth.org\n" +
+                "Billing — billing@riversidehealth.org",
+              id:
+                "Butuh bantuan masuk ke aplikasi pasien?\n\n" +
+                "IT Support — [[username:jwilson|Juga dipakai untuk sistem internal]] / " +
+                "[[email:jwilson@riversidehealth.org|Kontak dukungan IT — tercantum di beberapa halaman publik]]\n" +
+                "Front Desk — reception@riversidehealth.org\n" +
+                "Billing — billing@riversidehealth.org",
+            },
           },
           {
             name: "robots.txt",
             kind: "file",
             grantsFact: "found-internal-ip",
-            content:
-              "User-agent: *\n" +
-              "Disallow: /admin\n" +
-              "Disallow: /patient-portal/internal\n" +
-              "# TODO: retire link to the legacy ops dashboard " +
-              "([[path:192.168.20.5|Leftover internal IP, left in a public robots.txt]]) once migration finishes",
+            content: {
+              en:
+                "User-agent: *\n" +
+                "Disallow: /admin\n" +
+                "Disallow: /patient-portal/internal\n" +
+                "# TODO: retire link to the legacy ops dashboard " +
+                "([[path:192.168.20.5|Leftover internal IP, left in a public robots.txt]]) once migration finishes",
+              id:
+                "User-agent: *\n" +
+                "Disallow: /admin\n" +
+                "Disallow: /patient-portal/internal\n" +
+                "# TODO: hapus link ke dashboard ops lama " +
+                "([[path:192.168.20.5|IP internal yang ketinggalan, ada di robots.txt publik]]) setelah migrasi selesai",
+            },
           },
         ],
       },
@@ -217,7 +242,7 @@ export const LEVEL_05: LevelDef = {
         {
           id: "to-public",
           targetNodeId: "riverside-public",
-          label: "Pivot to 203.0.113.55",
+          label: { en: "Pivot to 203.0.113.55", id: "Pivot ke 203.0.113.55" },
           requiredFacts: [],
         },
       ],
@@ -228,8 +253,10 @@ export const LEVEL_05: LevelDef = {
           {
             name: "README.txt",
             kind: "file",
-            content:
-              "Internal ops dashboard. Authorized hospital staff only.\nContact IT if you've lost access.",
+            content: {
+              en: "Internal ops dashboard. Authorized hospital staff only.\nContact IT if you've lost access.",
+              id: "Dashboard ops internal. Hanya untuk staf rumah sakit yang berwenang.\nHubungi IT kalau kamu kehilangan akses.",
+            },
           },
         ],
       },
