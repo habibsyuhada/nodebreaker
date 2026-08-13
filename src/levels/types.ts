@@ -55,10 +55,15 @@ export interface UserAccount {
   password: string;
   role: string;
   /**
-   * Marks this account as a decoy — a valid-looking login that isn't the intended way in.
-   * Reserved for the Chapter 2 "decoy login" twist; not consumed by the engine yet.
+   * Marks this account as a decoy — a valid-looking login that isn't the intended way in. Logging
+   * in with it still grants node access (it IS a real, working account) but adds
+   * `decoyTracePenalty` (default 20) to trace and appends `decoyWarningText` (warn-toned) to the
+   * terminal, so the player learns they took the bait instead of silently failing — a player who
+   * inspects (tap-hold) or compares before logging in can avoid it.
    */
   decoy?: boolean;
+  decoyTracePenalty?: number;
+  decoyWarningText?: LocalizedText[];
 }
 
 /** What the "List Users" recon action reveals — usernames/roles only, no credentials. */

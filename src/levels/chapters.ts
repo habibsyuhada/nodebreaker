@@ -29,6 +29,25 @@ export const CHAPTERS: ChapterDef[] = [
     ],
     bossLevelId: "level-08",
   },
+  {
+    id: "chapter-2",
+    title: { en: "Chapter 2 — Sentinel Score", id: "Chapter 2 — Sentinel Score" },
+    tagline: {
+      en: "A health data broker's score decides who gets covered — and who gets flagged.",
+      id: "Skor milik broker data kesehatan menentukan siapa yang tercakup — dan siapa yang ditandai.",
+    },
+    levelIds: [
+      "level-09",
+      "level-10",
+      "level-11",
+      "level-12",
+      "level-13",
+      "level-14",
+      "level-15",
+      "level-16",
+    ],
+    bossLevelId: "level-16",
+  },
 ];
 
 export function chapterOf(levelId: string): ChapterDef | undefined {

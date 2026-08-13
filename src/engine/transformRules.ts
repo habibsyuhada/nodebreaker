@@ -21,6 +21,16 @@ const DECODE_RECIPES: Record<string, CombineResult> = {
     value: atob("TjFtYnVzI1ZlbmQwcg=="),
     label: "Decoded rotation pattern from the vendor onboarding notes",
   },
+  "d2VsbG5lc3Nib3Q=": {
+    type: "username",
+    value: atob("d2VsbG5lc3Nib3Q="),
+    label: "Decoded from a base64 comment left in the config",
+  },
+  "QzBhc3RhbCNCcmlkZ2U=": {
+    type: "pattern",
+    value: atob("QzBhc3RhbCNCcmlkZ2U="),
+    label: "Decoded rotation pattern from the vendor onboarding notes",
+  },
 };
 
 /** Keyed by the exact hash clue value — simulates a cracker matching against a known wordlist. */
@@ -35,6 +45,11 @@ const CRACK_RECIPES: Record<string, CombineResult> = {
     value: "AURELIA-LINK-4471",
     label: "Cracked ledger checksum — reveals an internal routing token",
   },
+  "c74d97b01eae257e44aa9d5bade97baf": {
+    type: "password",
+    value: "C0nsentWide9!",
+    label: "Cracked from the rotated password hash",
+  },
 };
 
 /** Keyed by the exact email clue value — simulates checking a public breach-dump database. */
@@ -47,6 +62,11 @@ const LEAK_RECIPES: Record<string, CombineResult> = {
   "finops@halcyondynamics.com": {
     type: "password",
     value: "Ledger$ecure9",
+    label: "Found in a public breach dump — this account reuses it",
+  },
+  "tokafor@alamedaregional.org": {
+    type: "password",
+    value: "Riverbank77!",
     label: "Found in a public breach dump — this account reuses it",
   },
 };

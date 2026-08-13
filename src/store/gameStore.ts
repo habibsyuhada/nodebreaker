@@ -1002,28 +1002,37 @@ export const useGameStore = create<GameState>()(
     set((state) => ({ loginPasswordClueId: state.loginPasswordClueId === id ? null : id })),
 
   confirmLogin: () => {
-    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId, lang } = get();
+    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId, lang, traceLevel } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const usernameClue = clues.find((c) => c.id === loginUsernameClueId);
     const passwordClue = clues.find((c) => c.id === loginPasswordClueId);
     if (!node || !usernameClue || !passwordClue) return;
 
-    const success = tryLogin(node, usernameClue.value, passwordClue.value);
+    const matchedUser = node.users.find(
+      (u) => u.username === usernameClue.value && u.password === passwordClue.value,
+    );
+    const success = Boolean(matchedUser);
     const lines: TerminalLine[] = [
       makeLine(`$ login --user ${usernameClue.value} --pass ********`, "input"),
       makeLine("AUTHENTICATING...", "output"),
     ];
     if (success) {
       lines.push(...level.successText.map((t) => makeLine(translate(t, lang), "success")));
+      if (matchedUser?.decoy) {
+        lines.push(...(matchedUser.decoyWarningText ?? []).map((t) => makeLine(translate(t, lang), "warn")));
+      }
     } else {
       lines.push(makeLine("ACCESS DENIED.", "warn"));
     }
+    const nextTrace =
+      success && matchedUser?.decoy ? clampTrace(traceLevel + (matchedUser.decoyTracePenalty ?? 20)) : traceLevel;
 
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
       accessGrantedNodes: success
         ? { ...state.accessGrantedNodes, [currentNodeId]: true }
         : state.accessGrantedNodes,
+      traceLevel: nextTrace,
       run: success ? state.run : { ...state.run, failedLogins: state.run.failedLogins + 1 },
       loginPickerOpen: false,
       loginUsernameClueId: null,
