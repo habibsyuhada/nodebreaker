@@ -253,7 +253,7 @@ function SettingsPanel() {
   }, [confirming]);
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4">
+    <div className="flex h-full flex-col gap-4 overflow-y-auto p-4">
       <h1 className="text-sm font-semibold tracking-widest text-text-bright">{t(UI.settingsTitle)}</h1>
       <p className="text-xs text-text-dim">{t(UI.reducedMotionNote)}</p>
       <p className="text-xs text-text-dim">{t(UI.autosaveNote)}</p>
