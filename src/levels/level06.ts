@@ -3,14 +3,24 @@ import type { LevelDef } from "./types";
 export const LEVEL_06: LevelDef = {
   id: "level-06",
   index: 5,
-  title: "Fleetline Logistics",
+  title: { en: "Fleetline Logistics", id: "Fleetline Logistics" },
   briefing: [
-    "Connection established.",
-    "Target: a regional shipping company's ops server.",
-    "Something here looks too easy to grab. Look before you touch anything.",
+    { en: "Connection established.", id: "Koneksi berhasil." },
+    {
+      en: "Target: a regional shipping company's ops server.",
+      id: "Target: server operasional perusahaan pengiriman regional.",
+    },
+    {
+      en: "Something here looks too easy to grab. Look before you touch anything.",
+      id: "Ada sesuatu di sini yang kelihatannya terlalu gampang buat diambil. Lihat dulu sebelum kamu sentuh apa pun.",
+    },
   ],
   entryNodeId: "fleetline-srv",
-  successText: ["ACCESS GRANTED.", "You're in — logistics ops console unlocked.", "LEVEL 6 COMPLETE."],
+  successText: [
+    { en: "ACCESS GRANTED.", id: "AKSES DIBERIKAN." },
+    { en: "You're in — logistics ops console unlocked.", id: "Kamu masuk — konsol ops logistik terbuka." },
+    { en: "LEVEL 6 COMPLETE.", id: "LEVEL 6 SELESAI." },
+  ],
   parSeconds: 240,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
@@ -162,30 +172,47 @@ export const LEVEL_06: LevelDef = {
           {
             name: "README.txt",
             kind: "file",
-            content: "Fleetline Logistics ops server. Contact IT before changing anything.",
+            content: {
+              en: "Fleetline Logistics ops server. Contact IT before changing anything.",
+              id: "Server operasional Fleetline Logistics. Hubungi IT sebelum mengubah apa pun.",
+            },
           },
           {
             name: "payroll_export",
             kind: "dir",
             metadata: [
-              { label: "owner", value: "security-ops" },
-              { label: "modified", value: "3 minutes ago" },
-              { label: "note", value: "access-monitored directory" },
+              { label: { en: "owner", id: "pemilik" }, value: { en: "security-ops", id: "security-ops" } },
+              {
+                label: { en: "modified", id: "dimodifikasi" },
+                value: { en: "3 minutes ago", id: "3 menit yang lalu" },
+              },
+              {
+                label: { en: "note", id: "catatan" },
+                value: { en: "access-monitored directory", id: "direktori dengan akses termonitor" },
+              },
             ],
             honeypot: {
               tracePenalty: 35,
               triggeredFact: "honeypot-triggered",
               warningText: [
-                "[alert] intrusion sensor tripped in /payroll_export",
-                "[alert] directory access logged and escalated to security-ops",
+                {
+                  en: "[alert] intrusion sensor tripped in /payroll_export",
+                  id: "[alert] sensor intrusi terpicu di /payroll_export",
+                },
+                {
+                  en: "[alert] directory access logged and escalated to security-ops",
+                  id: "[alert] akses direktori tercatat dan dieskalasi ke security-ops",
+                },
               ],
             },
             children: [
               {
                 name: "notes.txt",
                 kind: "file",
-                content:
-                  "Backup admin access — [[password:Payr0ll2024!|Found in the payroll backup folder]]",
+                content: {
+                  en: "Backup admin access — [[password:Payr0ll2024!|Found in the payroll backup folder]]",
+                  id: "Akses admin backup — [[password:Payr0ll2024!|Ditemukan di folder backup payroll]]",
+                },
               },
             ],
           },
@@ -201,12 +228,20 @@ export const LEVEL_06: LevelDef = {
                     name: "app_error.log",
                     kind: "file",
                     grantsFact: "read-error-log",
-                    content:
-                      "Traceback (most recent call last):\n" +
-                      '  File "sync.py", line 88, in <module>\n' +
-                      "    raise IOError(\"cannot resolve fallback path\")\n" +
-                      "IOError: fallback dir missing: " +
-                      "[[path:/mnt/archive/manifests_2024|Real data path, leaked in an app error stack trace]]",
+                    content: {
+                      en:
+                        "Traceback (most recent call last):\n" +
+                        '  File "sync.py", line 88, in <module>\n' +
+                        "    raise IOError(\"cannot resolve fallback path\")\n" +
+                        "IOError: fallback dir missing: " +
+                        "[[path:/mnt/archive/manifests_2024|Real data path, leaked in an app error stack trace]]",
+                      id:
+                        "Traceback (most recent call last):\n" +
+                        '  File "sync.py", line 88, in <module>\n' +
+                        "    raise IOError(\"cannot resolve fallback path\")\n" +
+                        "IOError: fallback dir missing: " +
+                        "[[path:/mnt/archive/manifests_2024|Path data asli, bocor lewat stack trace error aplikasi]]",
+                    },
                   },
                 ],
               },
@@ -228,11 +263,18 @@ export const LEVEL_06: LevelDef = {
                         name: "ops_handoff.txt",
                         kind: "file",
                         grantsFact: "read-handoff",
-                        content:
-                          "Ops handoff — shift notes.\n\n" +
-                          "If the sync job fails again, log in manually:\n" +
-                          "[[username:mdrake|Ops account, mentioned in handoff notes]] / " +
-                          "[[password:Fr8Handl3r!|Temporary password, meant to be rotated but wasn't]]",
+                        content: {
+                          en:
+                            "Ops handoff — shift notes.\n\n" +
+                            "If the sync job fails again, log in manually:\n" +
+                            "[[username:mdrake|Ops account, mentioned in handoff notes]] / " +
+                            "[[password:Fr8Handl3r!|Temporary password, meant to be rotated but wasn't]]",
+                          id:
+                            "Handoff ops — catatan shift.\n\n" +
+                            "Kalau sync job gagal lagi, login manual aja:\n" +
+                            "[[username:mdrake|Akun ops, disebut di catatan handoff]] / " +
+                            "[[password:Fr8Handl3r!|Password sementara, harusnya diganti tapi gak pernah]]",
+                        },
                       },
                     ],
                   },

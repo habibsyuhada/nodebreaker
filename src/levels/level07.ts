@@ -3,17 +3,23 @@ import type { LevelDef } from "./types";
 export const LEVEL_07: LevelDef = {
   id: "level-07",
   index: 6,
-  title: "Cityview Records Office",
+  title: { en: "Cityview Records Office", id: "Kantor Arsip Cityview" },
   briefing: [
-    "Connection established.",
-    "Target: city records office.",
-    "A front-desk account gets you in the door — the real records need admin.",
+    { en: "Connection established.", id: "Koneksi berhasil." },
+    { en: "Target: city records office.", id: "Target: kantor arsip kota." },
+    {
+      en: "A front-desk account gets you in the door — the real records need admin.",
+      id: "Akun loket depan bisa bikin kamu masuk — tapi arsip aslinya butuh akses admin.",
+    },
   ],
   entryNodeId: "cityview-srv",
   successText: [
-    "ACCESS GRANTED.",
-    "You're in as tholloway — clerk-level access only.",
-    "The real records will need more than this.",
+    { en: "ACCESS GRANTED.", id: "AKSES DIBERIKAN." },
+    {
+      en: "You're in as tholloway — clerk-level access only.",
+      id: "Kamu masuk sebagai tholloway — cuma akses level petugas.",
+    },
+    { en: "The real records will need more than this.", id: "Arsip aslinya butuh lebih dari ini." },
   ],
   completionRequires: ["read-citizen-records", "logs-falsified"],
   parSeconds: 280,
@@ -164,25 +170,40 @@ export const LEVEL_07: LevelDef = {
       privilegeEscalations: [
         {
           id: "drop-payload",
-          label: "Drop Payload",
+          label: { en: "Drop Payload", id: "Taruh Payload" },
           requiredFacts: ["found-cron-job", "found-dropbox"],
           grantsFact: "privilege-escalated",
           narrationText: [
-            "$ drop payload.trigger --target /srv/shared/dropbox",
-            "Waiting for the next sync cycle...",
-            "sync-job.sh executed your payload as root.",
-            "Privilege escalation successful — admin-level access granted.",
+            {
+              en: "$ drop payload.trigger --target /srv/shared/dropbox",
+              id: "$ drop payload.trigger --target /srv/shared/dropbox",
+            },
+            { en: "Waiting for the next sync cycle...", id: "Menunggu siklus sync berikutnya..." },
+            {
+              en: "sync-job.sh executed your payload as root.",
+              id: "sync-job.sh menjalankan payload kamu sebagai root.",
+            },
+            {
+              en: "Privilege escalation successful — admin-level access granted.",
+              id: "Eskalasi privilese berhasil — akses level admin diberikan.",
+            },
           ],
           requiredFactHints: {
-            "found-cron-job": "You don't know what runs as root yet — check the ops runbook.",
-            "found-dropbox": "You don't know where to drop the payload yet — check /srv/shared/dropbox.",
+            "found-cron-job": {
+              en: "You don't know what runs as root yet — check the ops runbook.",
+              id: "Kamu belum tahu apa yang jalan sebagai root — cek ops runbook.",
+            },
+            "found-dropbox": {
+              en: "You don't know where to drop the payload yet — check /srv/shared/dropbox.",
+              id: "Kamu belum tahu ke mana taruh payload-nya — cek /srv/shared/dropbox.",
+            },
           },
         },
       ],
       logFalsification: {
         requiredFacts: ["found-log-template"],
         tracePenaltyReduction: 15,
-        label: "Falsify Logs",
+        label: { en: "Falsify Logs", id: "Palsukan Log" },
       },
       root: {
         name: "/",
@@ -196,10 +217,16 @@ export const LEVEL_07: LevelDef = {
                 name: "ticket_4482.txt",
                 kind: "file",
                 grantsFact: "read-ticket",
-                content:
-                  "Ticket #4482 — password reset for [[username:tholloway|Front-desk clerk account]].\n" +
-                  "Temporary password issued: [[password:CityHall#22|Never rotated after reset]]. " +
-                  "Ask them to change it (they didn't).",
+                content: {
+                  en:
+                    "Ticket #4482 — password reset for [[username:tholloway|Front-desk clerk account]].\n" +
+                    "Temporary password issued: [[password:CityHall#22|Never rotated after reset]]. " +
+                    "Ask them to change it (they didn't).",
+                  id:
+                    "Tiket #4482 — reset password untuk [[username:tholloway|Akun petugas loket depan]].\n" +
+                    "Password sementara diterbitkan: [[password:CityHall#22|Belum pernah diganti setelah direset]]. " +
+                    "Diminta untuk menggantinya (gak diganti).",
+                },
               },
             ],
           },
@@ -215,11 +242,18 @@ export const LEVEL_07: LevelDef = {
                     name: "README.txt",
                     kind: "file",
                     grantsFact: "found-log-template",
-                    content:
-                      "Reference format for routine access entries:\n" +
-                      "<timestamp> <user> login OK from <internal-ip>\n\n" +
-                      "Audit reviews flag anything that doesn't match this pattern — " +
-                      "including gaps left by deleted entries.",
+                    content: {
+                      en:
+                        "Reference format for routine access entries:\n" +
+                        "<timestamp> <user> login OK from <internal-ip>\n\n" +
+                        "Audit reviews flag anything that doesn't match this pattern — " +
+                        "including gaps left by deleted entries.",
+                      id:
+                        "Format referensi untuk entri akses rutin:\n" +
+                        "<timestamp> <user> login OK from <internal-ip>\n\n" +
+                        "Audit akan menandai apa pun yang tidak cocok dengan pola ini — " +
+                        "termasuk celah yang ditinggalkan oleh entri yang dihapus.",
+                    },
                   },
                 ],
               },
@@ -241,9 +275,14 @@ export const LEVEL_07: LevelDef = {
                         name: "README.txt",
                         kind: "file",
                         grantsFact: "found-dropbox",
-                        content:
-                          "Drop zone for the nightly records sync. Anything placed here gets picked " +
-                          "up automatically — see the ops runbook for the schedule.",
+                        content: {
+                          en:
+                            "Drop zone for the nightly records sync. Anything placed here gets picked " +
+                            "up automatically — see the ops runbook for the schedule.",
+                          id:
+                            "Zona drop untuk sync arsip malam hari. Apa pun yang ditaruh di sini akan " +
+                            "otomatis diambil — lihat ops runbook untuk jadwalnya.",
+                        },
                       },
                     ],
                   },
@@ -259,11 +298,18 @@ export const LEVEL_07: LevelDef = {
                 name: "runbook.txt",
                 kind: "file",
                 grantsFact: "found-cron-job",
-                content:
-                  "Ops runbook — records sync\n\n" +
-                  "sync-job.sh runs as root every 5 minutes.\n" +
-                  "It reads any *.trigger file from the shared dropbox and executes it, then deletes it.\n" +
-                  "No validation — whatever's in there runs as-is.",
+                content: {
+                  en:
+                    "Ops runbook — records sync\n\n" +
+                    "sync-job.sh runs as root every 5 minutes.\n" +
+                    "It reads any *.trigger file from the shared dropbox and executes it, then deletes it.\n" +
+                    "No validation — whatever's in there runs as-is.",
+                  id:
+                    "Ops runbook — sync arsip\n\n" +
+                    "sync-job.sh berjalan sebagai root setiap 5 menit.\n" +
+                    "Skrip ini membaca file *.trigger apa pun dari shared dropbox lalu menjalankannya, kemudian menghapusnya.\n" +
+                    "Tidak ada validasi — apa pun isinya langsung dijalankan.",
+                },
               },
             ],
           },

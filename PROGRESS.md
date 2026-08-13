@@ -1246,20 +1246,64 @@ standalone script exercised `advanceDailyStreak`/`previousUtcDay` directly
 reset to 1, leap-day rollover) since none of that is reachable from a
 single Playwright session without manipulating the system clock.
 
+### Stage 24 mechanics added — content i18n, Levels 4–8
+
+**Problem:** Stage 20 translated Levels 1–3 (where new players actually
+are) into Bahasa Indonesia and deferred the rest; Levels 4–8 were still
+English-only.
+
+**What shipped:** the same `LocalizedText` pattern as Stage 20, applied to
+`src/levels/level04.ts` through `level08.ts` — `title`, `briefing`,
+`successText`, every `FileEntry.content` in each level's filesystem
+tree(s), and every other translatable field a level can carry:
+`FileCompareDef.label` (level04), `PivotDef.label` (levels 5 and 8),
+`FileMetadata.label`/`.value` and `HoneypotDef.warningText` (level06),
+`PrivilegeEscalationDef`/`BackdoorDef`/`LogFalsificationDef`'s `label`,
+`narrationText`, and `requiredFactHints` (levels 7 and 8). `intro`/`outro`
+scene content across all five levels was already bilingual from an earlier
+stage and untouched here.
+
+Two things deliberately stayed English-only, both following existing
+precedent rather than a new rule: pure-data CSV files with no narrative
+prose (`level07`'s `citizen_records.csv`, `level08`'s `employee_roster.csv`
+and `budget_2024.csv` — same treatment as `level02`'s `products.csv` from
+Stage 20), and every `ports[].banner` (that field is typed as a plain
+`string`, not `LocalizedText`, across the whole codebase — not something
+this stage's scope could change without a type migration affecting all 8
+levels' recon output). Terminal command-echo lines (anything starting
+`$ `, e.g. `"$ drop payload.trigger --target /srv/shared/dropbox"`) were
+kept byte-identical between languages rather than translated, matching how
+the game already treats rendered system/command output as part of the
+hacker-terminal aesthetic (see `i18n/ui.ts`'s own note on this).
+
+This pass was split across 5 parallel subagents, one per level file (no
+file overlap, so no merge risk) — each given the exact field list for its
+level, the clue-markup-value and search-chip-parity rules from Stage 20,
+and instructed to self-verify with `tsc` before returning; the aggregate
+`validate-i18n`/build/lint pass and spot-review of each diff was done once
+afterward, here.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint`, `npm run build`, and
+`npm run validate-i18n` (all 8 levels, including 4–8 now) all clean. A
+Playwright pass switched to Bahasa Indonesia and loaded each of Levels
+4–8 directly (bypassing Level Select's unlock gate via a seeded save,
+since a fresh profile would have them locked), confirming each level's
+Terminal briefing renders "Koneksi berhasil." and its Files panel opens
+without error; a follow-up pass on Level 4 specifically opened
+`README.txt` and `src/deploy.py` and confirmed their full Indonesian
+prose — including the `[[encoded:...]]` clue markup's untranslated value
+— renders correctly through `HoldableText`.
+
 ## What's next
 
-All 10 stages from the original build order, plus Stages 16–22 above, are
+All 10 stages from the original build order, plus Stages 16–24 above, are
 done — the game is feature-complete, the v1.0 round has a cold start, run
-scoring and grading, a shareable result card, Levels 1–3 translated into
+scoring and grading, a shareable result card, all 8 levels translated into
 Bahasa Indonesia, a 24-achievement Ops Record, and a Daily Contract with
 its own streak. Reasonable next moves if resuming work on this project
 (see the in-repo plan this session worked from for the full staged
-breakdown: the rest of content i18n, and a second chapter of levels,
-roughly in that order):
+breakdown — a second chapter of levels is the main remaining item):
 
-- **Stage 24 — content i18n, Levels 4–8**: same validated pipeline as
-  Stage 20, just more content. Deferred specifically so Levels 1–3 (where
-  new players actually are) shipped first.
 - Real human playtesting to tune `parSeconds` per level — see the Stage 18
   notes above; the current values are structural estimates, not measured.
 - Manual real-device testing (an actual phone, not just a Playwright
