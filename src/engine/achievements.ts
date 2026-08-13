@@ -50,7 +50,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: "campaign-complete",
     name: { en: "Full Clear", id: "Bersih Total" },
-    description: { en: "Complete all 8 campaign levels.", id: "Selesaikan semua 8 level kampanye." },
+    description: { en: "Complete all 32 campaign levels.", id: "Selesaikan semua 32 level kampanye." },
     isEarned: (ctx) => LEVELS.every((l) => ctx.completedLevels[l.id]),
   },
   {
