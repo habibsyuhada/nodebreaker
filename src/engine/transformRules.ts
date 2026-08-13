@@ -48,6 +48,16 @@ const DECODE_RECIPES: Record<string, CombineResult> = {
     value: atob("VDBsbExpbmUjUm91dGU="),
     label: "Decoded rotation pattern from the vendor onboarding notes",
   },
+  "cG9ydGZvbGlvc3Zj": {
+    type: "username",
+    value: atob("cG9ydGZvbGlvc3Zj"),
+    label: "Decoded from a base64 comment left in the config",
+  },
+  "QXVyM2xpYUxpbmsjNw==": {
+    type: "pattern",
+    value: atob("QXVyM2xpYUxpbmsjNw=="),
+    label: "Decoded rotation pattern from the vendor onboarding notes",
+  },
 };
 
 /** Keyed by the exact hash clue value — simulates a cracker matching against a known wordlist. */
@@ -65,6 +75,11 @@ const CRACK_RECIPES: Record<string, CombineResult> = {
   "c74d97b01eae257e44aa9d5bade97baf": {
     type: "password",
     value: "C0nsentWide9!",
+    label: "Cracked from the rotated password hash",
+  },
+  "a1b2c3d4e5f6789012345678901234ab": {
+    type: "password",
+    value: "St4keHidden#2",
     label: "Cracked from the rotated password hash",
   },
 };
@@ -89,6 +104,11 @@ const LEAK_RECIPES: Record<string, CombineResult> = {
   "dpatel@ferroviasystems.com": {
     type: "password",
     value: "Volt$urge42",
+    label: "Found in a public breach dump — this account reuses it",
+  },
+  "mreyes@aureliacapital.com": {
+    type: "password",
+    value: "Quart3rly!9",
     label: "Found in a public breach dump — this account reuses it",
   },
 };

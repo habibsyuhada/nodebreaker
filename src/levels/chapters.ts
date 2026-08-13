@@ -67,6 +67,25 @@ export const CHAPTERS: ChapterDef[] = [
     ],
     bossLevelId: "level-24",
   },
+  {
+    id: "chapter-4",
+    title: { en: "Chapter 4 — Cap Table", id: "Chapter 4 — Cap Table" },
+    tagline: {
+      en: "Three networks, three names on paper — one fund behind all of them.",
+      id: "Tiga jaringan, tiga nama di atas kertas — satu dana di balik semuanya.",
+    },
+    levelIds: [
+      "level-25",
+      "level-26",
+      "level-27",
+      "level-28",
+      "level-29",
+      "level-30",
+      "level-31",
+      "level-32",
+    ],
+    bossLevelId: "level-32",
+  },
 ];
 
 export function chapterOf(levelId: string): ChapterDef | undefined {
