@@ -17,6 +17,7 @@
  * missing-in-id are both reported), and exits non-zero on any failure so it can gate CI.
  */
 import { parseHoldableContent, clueKey } from "../src/engine/clueSystem";
+import { generateDailyContract } from "../src/engine/dailyContract";
 import { findEntry, searchFilesystem } from "../src/engine/nodeState";
 import type { Lang, LocalizedText } from "../src/i18n";
 import { t } from "../src/i18n";
@@ -119,7 +120,7 @@ function checkCompareLineParity(level: LevelDef): void {
   }
 }
 
-for (const level of LEVELS) {
+function validateLevel(level: LevelDef): void {
   console.log(`Checking ${level.id}...`);
   checkClueParity(`${level.id} title`, level.title);
   level.briefing.forEach((line, i) => checkClueParity(`${level.id} briefing[${i}]`, line));
@@ -143,10 +144,26 @@ for (const level of LEVELS) {
   checkCompareLineParity(level);
 }
 
+for (const level of LEVELS) validateLevel(level);
+
+// The Daily Contract (Stage 22) is never one of LEVELS — it's regenerated from a UTC-day seed —
+// so it needs its own i18n coverage. Its content is templated (see `generateDailyContract`), not
+// hand-authored per-day, so a spread of sample seeds is enough to catch a template bug; it doesn't
+// need one check per calendar day.
+const SAMPLE_DAILY_SEEDS = [
+  "2024-01-01",
+  "2024-06-15",
+  "2025-02-29",
+  "2025-12-31",
+  "2030-07-04",
+  "2099-11-20",
+];
+for (const seed of SAMPLE_DAILY_SEEDS) validateLevel(generateDailyContract(seed));
+
 console.log("");
 if (failures > 0) {
   console.error(`${failures} i18n parity failure(s) found.`);
   process.exit(1);
 } else {
-  console.log(`All ${LEVELS.length} levels pass i18n parity checks.`);
+  console.log(`All ${LEVELS.length} levels and ${SAMPLE_DAILY_SEEDS.length} sampled Daily Contract seeds pass i18n parity checks.`);
 }

@@ -253,6 +253,7 @@ export const UI = {
   },
   dailyStreakLabel: { en: "DAILY CONTRACT STREAK", id: "RENTETAN KONTRAK HARIAN" },
   dailyStreakBest: { en: "Best: {n}", id: "Terbaik: {n}" },
+  dailyStreakCurrent: { en: "{n}-day streak", id: "Rentetan {n} hari" },
 
   // Daily Contract (Stage 22)
   dailyContract: { en: "Daily Contract", id: "Kontrak Harian" },

@@ -130,11 +130,15 @@ function RunResultCard({ result, isNewBest }: { result: RunResult; isNewBest: bo
 function BreachedScreen() {
   const t = useT();
   const level = useGameStore((s) => s.level);
+  const levelSource = useGameStore((s) => s.levelSource);
   const loadLevel = useGameStore((s) => s.loadLevel);
+  const loadDailyContract = useGameStore((s) => s.loadDailyContract);
   const setScreen = useGameStore((s) => s.setScreen);
   const run = useGameStore((s) => s.run);
   const bestRun = useGameStore((s) => s.profile.bestRuns[level.id]);
-  const nextLevel = LEVELS[level.index + 1];
+  // A Daily Contract isn't part of LEVELS — level.index is a sentinel (-1) for it, so "next level"
+  // only ever applies to the campaign source.
+  const nextLevel = levelSource.kind === "campaign" ? LEVELS[levelSource.index + 1] : undefined;
   // bestRuns only ever points to this exact completion when it either just became the new best
   // or was the level's first-ever completion — either way, worth calling out.
   const isNewBest = run.result !== null && bestRun?.at === run.result.at;
@@ -151,7 +155,7 @@ function BreachedScreen() {
       <div className="flex flex-wrap justify-center gap-2">
         <button
           type="button"
-          onClick={() => loadLevel(level.index)}
+          onClick={() => (levelSource.kind === "daily" ? loadDailyContract() : loadLevel(level.index))}
           className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
         >
           {t(UI.replayLevel)}
@@ -202,7 +206,9 @@ function BurnedStats() {
 function BurnedScreen() {
   const t = useT();
   const level = useGameStore((s) => s.level);
+  const levelSource = useGameStore((s) => s.levelSource);
   const loadLevel = useGameStore((s) => s.loadLevel);
+  const loadDailyContract = useGameStore((s) => s.loadDailyContract);
 
   useEffect(() => {
     navigator.vibrate?.([30, 60, 30, 60, 30]);
@@ -218,7 +224,7 @@ function BurnedScreen() {
       <BurnedStats />
       <button
         type="button"
-        onClick={() => loadLevel(level.index)}
+        onClick={() => (levelSource.kind === "daily" ? loadDailyContract() : loadLevel(level.index))}
         className="min-h-[44px] rounded border border-warn/40 px-4 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"
       >
         {t(UI.retryLevel)}

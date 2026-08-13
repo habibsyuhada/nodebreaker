@@ -13,7 +13,9 @@ export function RestartLevelDialog() {
   const t = useT();
   const open = useGameStore((s) => s.restartConfirmOpen);
   const level = useGameStore((s) => s.level);
+  const levelSource = useGameStore((s) => s.levelSource);
   const loadLevel = useGameStore((s) => s.loadLevel);
+  const loadDailyContract = useGameStore((s) => s.loadDailyContract);
   const closeRestartConfirm = useGameStore((s) => s.closeRestartConfirm);
 
   if (!open) return null;
@@ -46,7 +48,8 @@ export function RestartLevelDialog() {
           <button
             type="button"
             onClick={() => {
-              loadLevel(level.index);
+              if (levelSource.kind === "daily") loadDailyContract();
+              else loadLevel(level.index);
               closeRestartConfirm();
             }}
             className="min-h-[44px] flex-1 rounded border border-warn/40 px-3 text-xs font-medium tracking-wide text-warn active:bg-warn-dim"

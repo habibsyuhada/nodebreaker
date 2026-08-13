@@ -2,11 +2,41 @@ import { useEffect, useState } from "react";
 import { IconSpeakerMuted, IconSpeakerOn } from "../art/icons";
 import { BASE_PALETTE, LOCK_SPRITE } from "../art/sprites";
 import { Sprite } from "../art/spriteEngine";
+import { todayUtcSeed } from "../engine/dailyContract";
+import { format } from "../i18n";
 import { UI } from "../i18n/ui";
 import { useT } from "../i18n/useT";
 import { promptInstall, useInstallAvailable } from "../pwa/installPrompt";
 import { useGameStore } from "../store/gameStore";
 import { TitleTerminal } from "./TitleTerminal";
+
+/** Today's contract button — separate component so its `todayUtcSeed()` read doesn't force MainMenu itself to re-render on an interval; it's cheap enough to just recompute per mount/render. */
+function DailyContractButton() {
+  const t = useT();
+  const setScreen = useGameStore((s) => s.setScreen);
+  const loadDailyContract = useGameStore((s) => s.loadDailyContract);
+  const daily = useGameStore((s) => s.profile.daily);
+  const doneToday = daily.lastCompletedSeed === todayUtcSeed();
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        loadDailyContract();
+        setScreen("game");
+      }}
+      className="flex min-h-[44px] flex-col items-center justify-center rounded border border-accent/40 px-4 text-xs font-medium tracking-wide text-accent active:bg-accent-dim"
+    >
+      <span>{t(UI.dailyContract)}</span>
+      {doneToday && <span className="text-[9px] font-normal text-text-dim">{t(UI.dailyContractDoneToday)}</span>}
+      {daily.streak > 0 && !doneToday && (
+        <span className="text-[9px] font-normal text-text-dim">
+          {format(t(UI.dailyStreakCurrent), { n: String(daily.streak) })}
+        </span>
+      )}
+    </button>
+  );
+}
 
 /**
  * Deliberately visible before any sound has played — a player who wants silence shouldn't have to
@@ -145,6 +175,7 @@ export function MainMenu() {
             {t(UI.startBtn)}
           </button>
         )}
+        <DailyContractButton />
         <button
           type="button"
           onClick={() => setScreen("levels")}

@@ -5,6 +5,7 @@ import { newlyEarned } from "../engine/achievements";
 import { addClue, resumeClueCounter } from "../engine/clueSystem";
 import type { Clue, ClueInput } from "../engine/clueSystem";
 import { tryCombine } from "../engine/combineRules";
+import { advanceDailyStreak, generateDailyContract, todayUtcSeed } from "../engine/dailyContract";
 import { findEntry, tryLogin } from "../engine/nodeState";
 import { computeRunResult } from "../engine/runMetrics";
 import type { RunResult } from "../engine/runMetrics";
@@ -24,6 +25,18 @@ import type { LevelDef, LevelNodeDef } from "../levels/types";
 export type PanelId = "terminal" | "files" | "clues" | "settings";
 
 export type ScreenId = "menu" | "levels" | "game" | "settings" | "records";
+
+/**
+ * Which of the two ways `state.level` was resolved — the static `LEVELS` array by index, or a
+ * Daily Contract regenerated from its seed (see `engine/dailyContract.ts`). Only the source is
+ * persisted, never the resolved `LevelDef` itself: a daily contract is a pure function of its
+ * seed, so `resolveLevel` reproduces the exact same level on every reload without saving it.
+ */
+export type LevelSource = { kind: "campaign"; index: number } | { kind: "daily"; seed: string };
+
+function resolveLevel(source: LevelSource): LevelDef {
+  return source.kind === "campaign" ? (LEVELS[source.index] ?? LEVELS[0]) : generateDailyContract(source.seed);
+}
 
 export type TerminalTone = "input" | "output" | "success" | "warn" | "system";
 
@@ -249,6 +262,8 @@ interface GameState {
   setActivePanel: (panel: PanelId) => void;
 
   level: LevelDef;
+  /** How `level` was resolved — see `LevelSource`. Persisted instead of the `LevelDef` itself. */
+  levelSource: LevelSource;
   currentNodeId: string;
 
   /** Every node id the player has been on this level (via loadLevel's entry node or pivotTo). Drives the Network Map's node list. */
@@ -338,6 +353,8 @@ interface GameState {
   confirmLogin: () => void;
 
   loadLevel: (index: number) => void;
+  /** Loads today's Daily Contract, regenerated deterministically from `todayUtcSeed()` — see `engine/dailyContract.ts`. */
+  loadDailyContract: () => void;
   /** Returns true if a new clue was added, false if it was already saved. */
   saveClue: (input: ClueInput) => boolean;
 
@@ -388,6 +405,50 @@ function briefingLines(level: LevelDef, lang: Lang): TerminalLine[] {
   return level.briefing.map((text) => makeLine(translate(text, lang), "system"));
 }
 
+/** Every field a fresh level load resets, shared by `loadLevel` and `loadDailyContract` — the only difference between the two is which `LevelSource`/`LevelDef` they resolve first. */
+function levelLoadState(level: LevelDef, source: LevelSource, lang: Lang): Partial<GameState> {
+  return {
+    levelSource: source,
+    briefingActive: !level.coldOpen,
+    introActive: Boolean(level.intro),
+    outroActive: false,
+    monologueQueue: [],
+    restartConfirmOpen: false,
+    level,
+    currentNodeId: level.entryNodeId,
+    visitedNodeIds: { [level.entryNodeId]: true },
+    networkMapOpen: false,
+    loginPickerOpen: false,
+    loginUsernameClueId: null,
+    loginPasswordClueId: null,
+    currentPath: [],
+    openFilePath: null,
+    inspectingPath: null,
+    searchOpen: false,
+    searchKeyword: null,
+    discovered: {},
+    accessGrantedNodes: {},
+    traceLevel: 0,
+    burned: false,
+    terminalLines: briefingLines(level, lang),
+    terminalRevealCount: 0,
+    clues: [],
+    workbenchOpen: false,
+    slotA: null,
+    slotB: null,
+    combineFeedback: null,
+    selectedClueId: null,
+    crackingClueId: null,
+    transformFeedback: null,
+    activePanel: "terminal",
+    // coldOpen levels skip BriefingDialog entirely, so dismissBriefing (the usual place the run
+    // clock starts) never fires — start it here instead. Non-coldOpen levels leave it null; the
+    // player decides when their run starts, same as trace.
+    run: { ...DEFAULT_RUN, startedAt: level.coldOpen ? Date.now() : null },
+    lastInteractionAt: Date.now(),
+  };
+}
+
 /**
  * What survives a reload: which level/node you're on and what you've earned there, plus which
  * levels have ever been completed (Level Select's lock/checkmark state) and whether the current
@@ -405,7 +466,7 @@ interface PersistedState {
    */
   profile: ProfileState;
   run: RunState;
-  levelIndex: number;
+  levelSource: LevelSource;
   currentNodeId: string;
   discovered: Record<string, true>;
   accessGrantedNodes: Record<string, true>;
@@ -461,12 +522,16 @@ export const useGameStore = create<GameState>()(
         !prevBest || result.score > prevBest.score
           ? { ...state.profile.bestRuns, [levelId]: result }
           : state.profile.bestRuns;
+      const daily =
+        state.levelSource.kind === "daily"
+          ? advanceDailyStreak(state.profile.daily, state.levelSource.seed)
+          : state.profile.daily;
 
       return {
         completedLevels: { ...state.completedLevels, [levelId]: true },
         outroActive: Boolean(state.level.outro),
         run: { ...state.run, endedAt, result },
-        profile: { ...state.profile, bestRuns },
+        profile: { ...state.profile, bestRuns, daily },
       };
     });
     get().checkAchievements();
@@ -509,6 +574,7 @@ export const useGameStore = create<GameState>()(
   setActivePanel: (panel) => set({ activePanel: panel }),
 
   level: LEVELS[0],
+  levelSource: { kind: "campaign", index: 0 },
   currentNodeId: LEVELS[0].entryNodeId,
   visitedNodeIds: { [LEVELS[0].entryNodeId]: true },
   networkMapOpen: false,
@@ -933,45 +999,12 @@ export const useGameStore = create<GameState>()(
   loadLevel: (index) => {
     const level = LEVELS[index];
     if (!level) return;
-    set({
-      briefingActive: !level.coldOpen,
-      introActive: Boolean(level.intro),
-      outroActive: false,
-      monologueQueue: [],
-      restartConfirmOpen: false,
-      level,
-      currentNodeId: level.entryNodeId,
-      visitedNodeIds: { [level.entryNodeId]: true },
-      networkMapOpen: false,
-      loginPickerOpen: false,
-      loginUsernameClueId: null,
-      loginPasswordClueId: null,
-      currentPath: [],
-      openFilePath: null,
-      inspectingPath: null,
-      searchOpen: false,
-      searchKeyword: null,
-      discovered: {},
-      accessGrantedNodes: {},
-      traceLevel: 0,
-      burned: false,
-      terminalLines: briefingLines(level, get().lang),
-      terminalRevealCount: 0,
-      clues: [],
-      workbenchOpen: false,
-      slotA: null,
-      slotB: null,
-      combineFeedback: null,
-      selectedClueId: null,
-      crackingClueId: null,
-      transformFeedback: null,
-      activePanel: "terminal",
-      // coldOpen levels skip BriefingDialog entirely, so dismissBriefing (the usual place the run
-      // clock starts) never fires — start it here instead. Non-coldOpen levels leave it null; the
-      // player decides when their run starts, same as trace.
-      run: { ...DEFAULT_RUN, startedAt: level.coldOpen ? Date.now() : null },
-      lastInteractionAt: Date.now(),
-    });
+    set(levelLoadState(level, { kind: "campaign", index }, get().lang));
+  },
+
+  loadDailyContract: () => {
+    const seed = todayUtcSeed();
+    set(levelLoadState(generateDailyContract(seed), { kind: "daily", seed }, get().lang));
   },
 
   saveClue: (input) => {
@@ -1172,7 +1205,7 @@ export const useGameStore = create<GameState>()(
   partialize: (state): PersistedState => ({
     profile: state.profile,
     run: state.run,
-    levelIndex: state.level.index,
+    levelSource: state.levelSource,
     currentNodeId: state.currentNodeId,
     discovered: state.discovered,
     accessGrantedNodes: state.accessGrantedNodes,
@@ -1189,9 +1222,13 @@ export const useGameStore = create<GameState>()(
     outroActive: state.outroActive,
   }),
   merge: (persisted, current) => {
-    const p = persisted as Partial<PersistedState> | undefined;
-    if (!p || p.levelIndex === undefined) return current as GameState;
-    const level = LEVELS[p.levelIndex] ?? LEVELS[0];
+    // `levelIndex` is the pre-Stage-22 save shape (a plain campaign index) — migrated to
+    // `LevelSource` here so an existing player's save still resumes their exact level instead of
+    // silently resetting. New saves only ever write `levelSource`.
+    const p = persisted as (Partial<PersistedState> & { levelIndex?: number }) | undefined;
+    if (!p || (p.levelSource === undefined && p.levelIndex === undefined)) return current as GameState;
+    const levelSource: LevelSource = p.levelSource ?? { kind: "campaign", index: p.levelIndex ?? 0 };
+    const level = resolveLevel(levelSource);
     const clues = p.clues ?? [];
     resumeClueCounter(clues);
     const profile = mergeProfile(p.profile);
@@ -1204,6 +1241,7 @@ export const useGameStore = create<GameState>()(
       profile,
       run: { ...DEFAULT_RUN, ...p.run },
       level,
+      levelSource,
       currentNodeId: p.currentNodeId ?? level.entryNodeId,
       discovered: p.discovered ?? {},
       accessGrantedNodes: p.accessGrantedNodes ?? {},

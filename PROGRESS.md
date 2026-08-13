@@ -1166,23 +1166,97 @@ login) confirmed the "Achievement unlocked" monologue text actually
 appears at the moment `first-breach` becomes true, not just that the
 achievement list renders.
 
+### Stage 22 mechanics added — Daily Contract
+
+**Problem:** the biggest remaining content lever in the plan — a fresh,
+replayable reason to open the game every day, on top of the fixed 8-level
+campaign — didn't exist yet, and the plan's own framing (a generator plus
+"`transformRules.ts` accepting per-level dynamic rules" and "`LevelSource`
+replacing index-based level resolution") implied more machinery than a
+once-a-day single-node contract actually earns back in play value.
+
+**What shipped, and what was deliberately descoped:**
+
+- `src/engine/dailyContract.ts` — `generateDailyContract(seed)` is a pure
+  function of a `"YYYY-MM-DD"` UTC-day seed (`todayUtcSeed()`): a
+  `mulberry32` PRNG keyed off an FNV-1a hash of the seed deterministically
+  picks an org name, owner name, founding year, and one of four flavor
+  "reasons" to go after this target, and builds a single-node level around
+  `combineRules.ts`'s one existing recipe (`username` + `pattern` →
+  `password`, matched by clue *type*, not value — see the Known Gaps note
+  below from Stage 9). Because that recipe is already value-agnostic, a
+  procedurally-picked username/pattern/password triple is winnable with
+  **zero engine changes** — no dynamic per-level `transformRules.ts` entries
+  needed, since the contract never uses decode/crack/leak/honeypot/pivot.
+  Same reasoning is why there's no intro/outro scene: those are authored
+  narrative beats a daily-regenerated level can't earn back. Never
+  persisted as a `LevelDef` — only the seed string is saved, and reloading
+  regenerates the identical level.
+- `LevelSource` (`store/gameStore.ts`) — `{ kind: "campaign", index }` or
+  `{ kind: "daily", seed }`, resolved to a `LevelDef` by `resolveLevel()`.
+  Replaces the old `levelIndex`-only persistence: `loadLevel` and the new
+  `loadDailyContract` both funnel through a shared `levelLoadState()`
+  helper (extracted from the old `loadLevel` body — the two only ever
+  differed in which `LevelSource`/`LevelDef` they resolve first) that also
+  stamps `levelSource`. Every place that used to assume `LEVELS[level.index
+  + 1]` or `loadLevel(level.index)` unconditionally (`BreachedScreen`'s
+  "Next Level", both screens' replay/retry buttons, `RestartLevelDialog`,
+  `shareText.ts`'s "Level N —" prefix) now branches on `levelSource.kind`
+  first — each was a real bug caught by hand-tracing the daily-contract
+  path (`level.index` is `-1` for a generated contract, so `LEVELS[-1 + 1]`
+  resolves to Level 1 and would've offered a bogus "Next Level" button).
+- `advanceDailyStreak(current, seed)` — pure streak transition:
+  same-day replay is a no-op, a completion the day after
+  `lastCompletedSeed` increments the streak, anything else (including the
+  very first completion) resets it to 1; `longest` tracks the high-water
+  mark. Called from `markLevelComplete` only when `levelSource.kind ===
+  "daily"`, alongside the existing `bestRuns`/`completedLevels` update, so
+  it shares one `set()` call rather than a second render pass.
+- `MainMenu`'s new **Daily Contract** button shows the current streak (or
+  a "come back after 00:00 UTC" note once today's is already done — replay
+  is still allowed, `advanceDailyStreak` just no-ops it). Ops Record's
+  streak line (Stage 21's placeholder, populated now) and 3 new
+  `daily-*`-keyed achievements (`contractor`, `week-streak`, `dedicated`)
+  read the same `profile.daily`.
+- **Backward compatibility:** `merge()` migrates a pre-Stage-22 save's
+  `levelIndex: number` into `{ kind: "campaign", index }` rather than
+  treating its absence as "no save" — an existing player's in-progress
+  campaign level, completed levels, and clues all still resume correctly
+  after this update, verified by hand-constructing an old-shape save in
+  `localStorage` and confirming it resumes into the right level/node.
+- `scripts/validate-i18n.ts` refactored to a reusable `validateLevel()`,
+  now also run against 6 sample Daily Contract seeds spanning different
+  years (including a Feb 29 leap-day seed) — the contract's templated
+  content needs the same clue-parity/search-parity/compare-line-parity
+  guarantees as hand-authored levels, and a handful of samples is enough
+  to catch a template bug without one check per calendar day.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint`, `npm run build`, and
+`npm run validate-i18n` (8 levels + 6 sampled daily seeds) all clean. A
+full Playwright playthrough of a generated Daily Contract — Files → read
+`about-us.txt` → tap-save the `pattern` clue → `backup/users_backup.csv` →
+tap-save the `username` clue → Workbench → real pointer drag-and-drop of
+both chips into slots → Combine → Login → confirm — reached NODE BREACHED,
+unlocked `first-breach`, `untouchable`, and `contractor` in one run, and
+Ops Record showed the streak afterward, all with zero console errors. A
+second Playwright pass confirmed the old-save migration path separately (a
+hand-built pre-Stage-22 `levelIndex`-shaped save resumed correctly), and a
+standalone script exercised `advanceDailyStreak`/`previousUtcDay` directly
+(consecutive day → streak+1, same-day replay → no-op, a skipped day →
+reset to 1, leap-day rollover) since none of that is reachable from a
+single Playwright session without manipulating the system clock.
+
 ## What's next
 
-All 10 stages from the original build order, plus Stages 16–21 above, are
+All 10 stages from the original build order, plus Stages 16–22 above, are
 done — the game is feature-complete, the v1.0 round has a cold start, run
 scoring and grading, a shareable result card, Levels 1–3 translated into
-Bahasa Indonesia, and a 24-achievement Ops Record. Reasonable next moves if
-resuming work on this project (see the in-repo plan this session worked
-from for the full staged breakdown: daily contracts, the rest of content
-i18n, and a second chapter of levels, roughly in that order):
+Bahasa Indonesia, a 24-achievement Ops Record, and a Daily Contract with
+its own streak. Reasonable next moves if resuming work on this project
+(see the in-repo plan this session worked from for the full staged
+breakdown: the rest of content i18n, and a second chapter of levels,
+roughly in that order):
 
-- **Stage 22 — Daily Contract**: a seeded generator producing a fresh,
-  solvable-by-construction contract every UTC day, with `transformRules.ts`
-  accepting per-level dynamic rules and `LevelSource` replacing the
-  index-based level resolution that a generated (non-`LEVELS`-array) level
-  would otherwise break. This is the biggest remaining content lever in the
-  plan, and now has both a rank (Stage 18) and a share card (Stage 19) to
-  give it a reason to be played daily.
 - **Stage 24 — content i18n, Levels 4–8**: same validated pipeline as
   Stage 20, just more content. Deferred specifically so Levels 1–3 (where
   new players actually are) shipped first.
