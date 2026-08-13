@@ -16,6 +16,7 @@ export const UI = {
   },
   continueBtn: { en: "Continue", id: "Lanjutkan" },
   selectLevel: { en: "Select Level", id: "Pilih Level" },
+  installApp: { en: "Install App", id: "Instal Aplikasi" },
   settings: { en: "Settings", id: "Pengaturan" },
   exit: { en: "Exit", id: "Keluar" },
   connectionTerminated: { en: "CONNECTION TERMINATED", id: "KONEKSI DIPUTUS" },
@@ -38,13 +39,17 @@ export const UI = {
   // SettingsPanel
   settingsTitle: { en: "SETTINGS", id: "PENGATURAN" },
   reducedMotionNote: {
-    en: "Reduced motion is auto-detected from your system, and sound respects it too.",
-    id: "Gerakan berkurang terdeteksi otomatis dari sistem kamu, suara juga menyesuaikan.",
+    en: "Reduced motion is auto-detected from your system.",
+    id: "Gerakan berkurang terdeteksi otomatis dari sistem kamu.",
   },
   autosaveNote: {
     en: "Your level, clues, and trace save automatically to this device — closing the tab won't lose your place.",
     id: "Level, petunjuk, dan trace kamu otomatis tersimpan di perangkat ini — menutup tab gak akan menghilangkan progres.",
   },
+  audioLabel: { en: "Sound", id: "Suara" },
+  muteOn: { en: "Muted", id: "Senyap" },
+  muteOff: { en: "On", id: "Aktif" },
+  volumeLabel: { en: "Volume", id: "Volume" },
   languageLabel: { en: "Language", id: "Bahasa" },
   resetProgress: { en: "Reset Progress", id: "Reset Progres" },
   resetConfirm: {

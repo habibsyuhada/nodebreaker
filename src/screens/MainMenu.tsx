@@ -1,9 +1,32 @@
 import { useEffect, useState } from "react";
+import { IconSpeakerMuted, IconSpeakerOn } from "../art/icons";
 import { BASE_PALETTE, LOCK_SPRITE } from "../art/sprites";
 import { Sprite } from "../art/spriteEngine";
 import { UI } from "../i18n/ui";
 import { useT } from "../i18n/useT";
+import { promptInstall, useInstallAvailable } from "../pwa/installPrompt";
 import { useGameStore } from "../store/gameStore";
+
+/**
+ * Deliberately visible before any sound has played — a player who wants silence shouldn't have to
+ * hear a beep first to find the button that stops it. Top-right, out of the way of the primary CTA.
+ */
+function MuteToggle() {
+  const t = useT();
+  const muted = useGameStore((s) => s.profile.audio.muted);
+  const setAudio = useGameStore((s) => s.setAudio);
+
+  return (
+    <button
+      type="button"
+      onClick={() => setAudio({ muted: !muted })}
+      aria-label={muted ? t(UI.muteOn) : t(UI.muteOff)}
+      className="absolute right-2 top-2 flex min-h-[44px] min-w-[44px] items-center justify-center text-text-dim active:text-accent"
+    >
+      {muted ? <IconSpeakerMuted size={20} /> : <IconSpeakerOn size={20} />}
+    </button>
+  );
+}
 
 /**
  * The web platform has no real "quit the app" — window.close() only works on a tab the page
@@ -44,6 +67,7 @@ export function MainMenu() {
   const traceLevel = useGameStore((s) => s.traceLevel);
   const accessGrantedCount = useGameStore((s) => Object.keys(s.accessGrantedNodes).length);
   const completedCount = useGameStore((s) => Object.keys(s.completedLevels).length);
+  const installAvailable = useInstallAvailable();
   const [exited, setExited] = useState(false);
 
   const hasProgress =
@@ -56,7 +80,8 @@ export function MainMenu() {
   if (exited) return <ExitScreen onCancel={() => setExited(false)} />;
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-6 p-6 text-center">
+    <div className="relative flex h-full flex-col items-center justify-center gap-6 p-6 text-center">
+      <MuteToggle />
       <Sprite grid={LOCK_SPRITE} palette={BASE_PALETTE} size={64} title="nodebreaker" />
       <div>
         <h1 className="text-lg font-semibold tracking-[0.3em] text-accent">NODEBREAKER</h1>
@@ -88,6 +113,15 @@ export function MainMenu() {
         >
           {t(UI.settings)}
         </button>
+        {installAvailable && (
+          <button
+            type="button"
+            onClick={() => void promptInstall()}
+            className="min-h-[44px] rounded border border-accent/40 px-4 text-xs font-medium tracking-wide text-accent active:bg-accent-dim"
+          >
+            {t(UI.installApp)}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setExited(true)}

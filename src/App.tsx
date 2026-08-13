@@ -152,6 +152,8 @@ function SettingsPanel() {
   const screen = useGameStore((s) => s.screen);
   const lang = useGameStore((s) => s.lang);
   const setLang = useGameStore((s) => s.setLang);
+  const audio = useGameStore((s) => s.profile.audio);
+  const setAudio = useGameStore((s) => s.setAudio);
   const openRestartConfirm = useGameStore((s) => s.openRestartConfirm);
   const [confirming, setConfirming] = useState(false);
   const inGame = screen === "game";
@@ -167,6 +169,35 @@ function SettingsPanel() {
       <h1 className="text-sm font-semibold tracking-widest text-text-bright">{t(UI.settingsTitle)}</h1>
       <p className="text-xs text-text-dim">{t(UI.reducedMotionNote)}</p>
       <p className="text-xs text-text-dim">{t(UI.autosaveNote)}</p>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-text-dim">{t(UI.audioLabel)}</p>
+          <button
+            type="button"
+            onClick={() => setAudio({ muted: !audio.muted })}
+            className={`min-h-[44px] rounded border px-4 text-xs font-medium tracking-wide ${
+              audio.muted
+                ? "border-warn/40 text-warn active:bg-warn-dim"
+                : "border-accent/40 text-accent active:bg-accent-dim"
+            }`}
+          >
+            {audio.muted ? t(UI.muteOn) : t(UI.muteOff)}
+          </button>
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-text-dim">{t(UI.volumeLabel)}</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={audio.volume}
+            disabled={audio.muted}
+            onChange={(e) => setAudio({ volume: Number(e.target.value) })}
+            className="h-[44px] w-full accent-accent disabled:opacity-40"
+          />
+        </label>
+      </div>
       <div className="flex flex-col gap-2">
         <p className="text-xs text-text-dim">{t(UI.languageLabel)}</p>
         <div className="flex gap-2">

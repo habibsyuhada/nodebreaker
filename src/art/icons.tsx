@@ -101,6 +101,32 @@ const DOC_GRID: IconGrid = [
   "..........",
 ];
 
+const SPEAKER_ON_GRID: IconGrid = [
+  "..........",
+  "...oo.....",
+  "..ooooa...",
+  ".oooo.a...",
+  "oooooo.a..",
+  "oooooo.a..",
+  ".oooo.a...",
+  "..ooooa...",
+  "...oo.....",
+  "..........",
+];
+
+const SPEAKER_MUTED_GRID: IconGrid = [
+  "..........",
+  "...oo.....",
+  "..ooooo...",
+  ".oooo..o..",
+  "oooooo.o..",
+  "ooooooo...",
+  ".oooo.o...",
+  "..ooooo...",
+  "...oo.....",
+  "..........",
+];
+
 const SETTINGS_GRID: IconGrid = [
   "...oo.....",
   "...oo.....",
@@ -132,4 +158,12 @@ export function IconDoc(props: { size?: number; className?: string }) {
 
 export function IconSettings(props: { size?: number; className?: string }) {
   return <PixelIcon grid={SETTINGS_GRID} {...props} />;
+}
+
+export function IconSpeakerOn(props: { size?: number; className?: string }) {
+  return <PixelIcon grid={SPEAKER_ON_GRID} {...props} />;
+}
+
+export function IconSpeakerMuted(props: { size?: number; className?: string }) {
+  return <PixelIcon grid={SPEAKER_MUTED_GRID} {...props} />;
 }

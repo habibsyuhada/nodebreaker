@@ -1,6 +1,25 @@
 /** Procedural chiptune-style feedback via Web Audio — no audio files. */
 
 let ctx: AudioContext | null = null;
+let masterGain: GainNode | null = null;
+
+/**
+ * Every sound routes through one master gain rather than straight to `destination`, so muting is
+ * a single gain change instead of a flag every `play*` function has to remember to check.
+ * Mirrored from the store's `profile.audio`; kept in module scope so a sound triggered before the
+ * store has rehydrated still respects the last applied setting.
+ */
+let output: { muted: boolean; volume: number } = { muted: false, volume: 0.8 };
+
+function applyOutput(): void {
+  if (masterGain) masterGain.gain.value = output.muted ? 0 : output.volume;
+}
+
+/** Called by the store whenever `profile.audio` changes, and once after the save rehydrates. */
+export function setAudioOutput(next: { muted: boolean; volume: number }): void {
+  output = { muted: next.muted, volume: Math.max(0, Math.min(1, next.volume)) };
+  applyOutput();
+}
 
 function getContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -10,10 +29,25 @@ function getContext(): AudioContext | null {
     if (!Ctor) return null;
     ctx = new Ctor();
   }
+  if (!masterGain) {
+    masterGain = ctx.createGain();
+    masterGain.connect(ctx.destination);
+    applyOutput();
+  }
   if (ctx.state === "suspended") {
     void ctx.resume();
   }
   return ctx;
+}
+
+/**
+ * The node every sound connects to instead of `ctx.destination`. Returns null only when audio is
+ * unavailable entirely, in which case callers bail out the same way they already did.
+ */
+function getOutputNode(): AudioNode | null {
+  const audioCtx = getContext();
+  if (!audioCtx || !masterGain) return null;
+  return masterGain;
 }
 
 interface BeepOptions {
@@ -25,8 +59,10 @@ interface BeepOptions {
 }
 
 function beep({ frequency, duration, type = "square", volume = 0.05, delay = 0 }: BeepOptions): void {
+  if (output.muted) return;
   const audioCtx = getContext();
-  if (!audioCtx) return;
+  const out = getOutputNode();
+  if (!audioCtx || !out) return;
   const start = audioCtx.currentTime + delay;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -35,7 +71,7 @@ function beep({ frequency, duration, type = "square", volume = 0.05, delay = 0 }
   gain.gain.setValueAtTime(volume, start);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
   osc.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(out);
   osc.start(start);
   osc.stop(start + duration);
 }
@@ -70,8 +106,10 @@ interface NoiseBurstOptions {
 
 /** White-noise burst through a bandpass filter — the "noise generator" texture, distinct from beep()'s pure tones. */
 function noiseBurst({ duration, volume = 0.04, delay = 0, filterFreq = 2000 }: NoiseBurstOptions): void {
+  if (output.muted) return;
   const audioCtx = getContext();
-  if (!audioCtx) return;
+  const out = getOutputNode();
+  if (!audioCtx || !out) return;
   const start = audioCtx.currentTime + delay;
   const sampleCount = Math.max(1, Math.floor(audioCtx.sampleRate * duration));
   const buffer = audioCtx.createBuffer(1, sampleCount, audioCtx.sampleRate);
@@ -89,7 +127,7 @@ function noiseBurst({ duration, volume = 0.04, delay = 0, filterFreq = 2000 }: N
 
   source.connect(filter);
   filter.connect(gain);
-  gain.connect(audioCtx.destination);
+  gain.connect(out);
   source.start(start);
   source.stop(start + duration);
 }

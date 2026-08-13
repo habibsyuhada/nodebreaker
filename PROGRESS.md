@@ -697,17 +697,102 @@ true-duration (both set together in `loadLevel`; `dismissIntro` always
 fires before `dismissBriefing` in the UI flow) and `TraceTicker`'s existing
 `briefingActive` gate, which this stage did not modify.
 
+### Stage 16 mechanics added — v1.0 round: save schema, audio, install, release hygiene
+
+**Problem:** the game was feature-complete but the funnel around it leaked —
+no install prompt was ever shown despite the app being installable, there was
+no way to mute the procedural audio, `assetlinks.json` still had a placeholder
+signing fingerprint (would fail Digital Asset Links verification on the TWA),
+a stale feature branch was still wired into the Pages deploy trigger, and
+`README.md` was still the untouched Vite template. This stage is the
+foundation for the rest of the v1.0 round (scoring, achievements, daily
+contracts) — all of it adds persisted state, and persistence in this store is
+hand-written in three places, so the schema needed to stop growing linearly
+with feature count before more features landed.
+
+**Design — persistence refactor:** `gameStore.ts` gained `ProfileState`
+(`bestRuns`, `counters`, `achievements`, `daily`, `audio`, `footholds` —
+account-wide, survives `loadLevel`) and `RunState` (`startedAt`, `endedAt`,
+`peakTrace`, `failedLogins`, `result` — reset every `loadLevel`, exists now so
+later scoring work has somewhere to write without touching persistence again).
+`RunResult`/`Rank` types live in a new `src/engine/runMetrics.ts` even though
+nothing computes them yet, so `ProfileState.bestRuns` has a stable shape from
+day one. `mergeProfile()` spreads each sub-object individually (`daily`,
+`audio`) rather than relying on one shallow spread, since a save written
+before a new sub-field existed would otherwise rehydrate that field as
+`undefined`. `freshAccount()` centralizes what "Reset Progress" wipes —
+`completedLevels`, `networkMapHintShown`, `profile` (audio setting excluded on
+purpose, so a reset doesn't un-mute the game), `run` — so a future field added
+to the store can't silently survive a reset by accident. `partialize`/`merge`
+now grow by two lines (`profile`, `run`) instead of one line per new field.
+
+**Design — audio mute/volume:** `synth.ts` previously connected every
+oscillator/noise-burst straight to `ctx.destination`, so there was no way to
+silence it short of the OS mute button. Added one `masterGain` node created
+alongside the `AudioContext`; `beep()`/`noiseBurst()` route through it and
+early-return before touching the context at all when `output.muted`.
+`setAudioOutput()` is exported so the store can push `profile.audio` into the
+synth on every change and once after rehydrate (a session's first sound would
+otherwise play at the default volume before the restored setting reached the
+module). Surfaced two places: a speaker icon top-right of `MainMenu`
+(deliberately visible before any sound has ever played) and a mute
+toggle + volume slider in `SettingsPanel`. Also corrected
+`UI.reducedMotionNote`, which claimed sound respected
+`prefers-reduced-motion` — it never did (only `Terminal.tsx`'s
+`playTypeTick` checked it) — rather than wiring up a claim nobody asked for;
+the new mute control supersedes the need for it anyway.
+
+**Design — install prompt:** nothing in the repo listened for
+`beforeinstallprompt` — the PWA was installable but never asked to be. New
+`src/pwa/installPrompt.ts` registers the listener at module load (imported
+for its side effect from `main.tsx`, before React mounts, since the browser
+can fire the event before anything renders) and exposes
+`useInstallAvailable()` via `useSyncExternalStore` plus a `promptInstall()`
+that calls the deferred event's `.prompt()`. `MainMenu` shows an Install
+button only when the browser has actually offered one. Verified in a headless
+Playwright pass that the button stays correctly hidden under `npm run dev`
+(no service worker/manifest in dev mode, so no installability signal exists
+to trigger the event) and that nothing else on the menu regressed.
+
+**Release hygiene:** `deploy-pages.yml`'s push trigger no longer includes the
+merged `claude/victim-scenario-before-after-m76i08` branch. `README.md`
+rewritten to actually describe the game, stack, dev commands, and the two
+deploy workflows instead of the stock Vite/React template text.
+**`public/.well-known/assetlinks.json` still has the placeholder
+`REPLACE_WITH_APP_SIGNING_CERT_SHA256_FROM_PLAY_CONSOLE`** — this couldn't be
+fixed here since the real value is the app's Play Console signing
+certificate's SHA-256 fingerprint, which only the account holder has; until
+it's filled in, the TWA will fail Digital Asset Links verification and show a
+browser URL bar instead of a clean full-screen app.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint` (oxlint), `npm run build`
+all clean. Playwright-driven pass at 390×800 confirmed: mute toggle flips the
+MainMenu speaker icon and the setting survives a reload; Settings shows the
+Sound toggle and a working volume slider; Level Select and Level 1's intro
+scene still render and navigate normally with no new console errors.
+
 ## What's next
 
-All 10 stages from the original build order are done — the game is
-feature-complete: all 8 levels playable end-to-end, PWA installable, saves
-and resumes across reloads, works offline after the first visit. Nothing is
-blocking; anything from here is optional polish, not a gap. Reasonable next
-moves if resuming work on this project:
+All 10 stages from the original build order, plus Stage 16 above, are done —
+the game is feature-complete and the v1.0 round's foundation stage has
+landed. Reasonable next moves if resuming work on this project (see the
+in-repo plan this session worked from for the full staged breakdown: cold
+start, run scoring, share cards, daily contracts, achievements, content
+i18n, and a second chapter of levels, roughly in that order):
 
-- Manual real-device testing (an actual phone, not just a 400×800
-  Playwright viewport) — installability prompt, home-screen icon rendering,
-  touch/haptic feel, actual airplane-mode offline check.
+- **Stage 17 — first 90 seconds**: the cold start is still a stack of
+  blocking overlays (`LanguagePicker` → MainMenu → LevelSelect → intro scene
+  → briefing) before a player can touch anything. Auto-detect language
+  instead of blocking on it, add a direct START path into Level 1, and add
+  the idle-hint coaching the original design brief called for but never
+  shipped.
+- **Stage 18 — run scoring & grading**: no score, rank, or achievement exists
+  yet; `RunResult`/`Rank` are typed and ready in `runMetrics.ts` but nothing
+  computes or displays them.
+- Manual real-device testing (an actual phone, not just a Playwright
+  viewport) — installability prompt, home-screen icon rendering,
+  touch/haptic feel, actual airplane-mode offline check — plus verifying the
+  TWA once `assetlinks.json` has a real fingerprint.
 - More levels beyond the original 8, if desired — the engine's "types →
   store action → ContextAction" pattern (see below) scales to new mechanics
   without rework, and Level 8's node count could grow from 4 toward the

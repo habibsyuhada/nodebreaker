@@ -1,9 +1,11 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { setAudioOutput } from "../audio/synth";
 import { addClue, resumeClueCounter } from "../engine/clueSystem";
 import type { Clue, ClueInput } from "../engine/clueSystem";
 import { tryCombine } from "../engine/combineRules";
 import { findEntry, tryLogin } from "../engine/nodeState";
+import type { RunResult } from "../engine/runMetrics";
 import {
   AMBIENT_TRACE_LOGS,
   clampTrace,
@@ -37,6 +39,99 @@ export interface CombineFeedback {
 export interface MonologueEntry {
   id: string;
   lines: string[];
+}
+
+export interface AudioSettings {
+  muted: boolean;
+  /** 0..1, multiplied into every generated sound via the synth's master gain. */
+  volume: number;
+}
+
+/**
+ * Everything the player accumulates across levels, as one nested object.
+ *
+ * Persistence in this store is hand-written in three places (the `PersistedState` interface,
+ * `partialize`, and `merge`), so every new top-level persisted field is three edits and one
+ * chance to forget. Nesting account-wide state here means those three places stop growing:
+ * new profile fields only need a default in `DEFAULT_PROFILE` and a spread in `mergeProfile`.
+ */
+export interface ProfileState {
+  /** Best (not latest) result per level id — a worse replay never overwrites a better run. */
+  bestRuns: Record<string, RunResult>;
+  /** Free-form tallies driving achievements, bumped through the single `bumpCounter` helper. */
+  counters: Record<string, number>;
+  /** Achievement id -> epoch ms it was unlocked. */
+  achievements: Record<string, number>;
+  daily: {
+    /** Seed of the most recently completed daily contract, or null if none ever was. */
+    lastCompletedSeed: string | null;
+    streak: number;
+    longest: number;
+  };
+  audio: AudioSettings;
+  /** Level ids where a persistent foothold was planted — read by later levels that gate on one. */
+  footholds: Record<string, true>;
+}
+
+/**
+ * Measurements for the run currently in progress. Reset by `loadLevel`, unlike `ProfileState`.
+ * Kept separate from the profile precisely so `loadLevel` can clear it in one assignment.
+ */
+export interface RunState {
+  /** Set when the briefing is dismissed — the clock starts when the player starts it, like trace. */
+  startedAt: number | null;
+  endedAt: number | null;
+  peakTrace: number;
+  failedLogins: number;
+  /** The graded result, once the run has completed successfully. Null while in progress or burned. */
+  result: RunResult | null;
+}
+
+const DEFAULT_PROFILE: ProfileState = {
+  bestRuns: {},
+  counters: {},
+  achievements: {},
+  daily: { lastCompletedSeed: null, streak: 0, longest: 0 },
+  audio: { muted: false, volume: 0.8 },
+  footholds: {},
+};
+
+const DEFAULT_RUN: RunState = {
+  startedAt: null,
+  endedAt: null,
+  peakTrace: 0,
+  failedLogins: 0,
+  result: null,
+};
+
+/**
+ * Restores a persisted profile onto the current defaults.
+ *
+ * A single shallow spread is not enough: `{...DEFAULT_PROFILE, ...persisted}` would replace whole
+ * sub-objects, so a save written before a new sub-field existed (say `daily.longest`) would
+ * rehydrate that field as undefined. Each sub-object therefore gets its own spread.
+ */
+function mergeProfile(persisted: Partial<ProfileState> | undefined): ProfileState {
+  return {
+    ...DEFAULT_PROFILE,
+    ...persisted,
+    daily: { ...DEFAULT_PROFILE.daily, ...persisted?.daily },
+    audio: { ...DEFAULT_PROFILE.audio, ...persisted?.audio },
+  };
+}
+
+/**
+ * Everything "Reset Progress" wipes, in one place — so account-wide state can't be added to the
+ * store and silently survive a reset. Preferences are deliberately not progress: the language
+ * choice and the audio settings carry over, since wiping a save shouldn't un-mute the game.
+ */
+function freshAccount(current: ProfileState) {
+  return {
+    completedLevels: {} as Record<string, true>,
+    networkMapHintShown: false,
+    profile: { ...DEFAULT_PROFILE, audio: { ...current.audio } },
+    run: { ...DEFAULT_RUN },
+  };
 }
 
 let lineCounter = 0;
@@ -87,6 +182,13 @@ interface GameState {
   /** Which top-level screen is showing — always boots to "menu" regardless of saved progress. */
   screen: ScreenId;
   setScreen: (screen: ScreenId) => void;
+
+  /** Account-wide accumulated state — see ProfileState. Survives loadLevel, wiped by resetProgress. */
+  profile: ProfileState;
+  /** Measurements for the run in progress — see RunState. Reset by loadLevel. */
+  run: RunState;
+  /** Updates audio preferences and applies them to the synth immediately. */
+  setAudio: (patch: Partial<AudioSettings>) => void;
 
   /** Level ids that have been completed at least once — drives Level Select's lock/checkmark state. */
   completedLevels: Record<string, true>;
@@ -262,6 +364,13 @@ function briefingLines(level: LevelDef): TerminalLine[] {
  * in particular always boots to "menu" on purpose, even with a save present.
  */
 interface PersistedState {
+  /**
+   * Account-wide state and the in-progress run's measurements. These two nest everything added
+   * from the scoring/achievements/daily work onward, so this interface, `partialize`, and `merge`
+   * stop growing a line per feature — see ProfileState's note.
+   */
+  profile: ProfileState;
+  run: RunState;
   levelIndex: number;
   currentNodeId: string;
   discovered: Record<string, true>;
@@ -286,6 +395,14 @@ export const useGameStore = create<GameState>()(
     (set, get) => ({
       screen: "menu",
   setScreen: (screen) => set({ screen }),
+
+  profile: DEFAULT_PROFILE,
+  run: DEFAULT_RUN,
+  setAudio: (patch) => {
+    const audio = { ...get().profile.audio, ...patch };
+    setAudioOutput(audio);
+    set((state) => ({ profile: { ...state.profile, audio } }));
+  },
 
   completedLevels: {},
   markLevelComplete: (levelId) =>
@@ -754,6 +871,7 @@ export const useGameStore = create<GameState>()(
       crackingClueId: null,
       transformFeedback: null,
       activePanel: "terminal",
+      run: { ...DEFAULT_RUN },
     });
   },
 
@@ -902,7 +1020,7 @@ export const useGameStore = create<GameState>()(
 
   resetProgress: () => {
     useGameStore.persist.clearStorage();
-    set({ completedLevels: {} });
+    set(freshAccount(get().profile));
     get().loadLevel(0);
   },
 }),
@@ -911,6 +1029,8 @@ export const useGameStore = create<GameState>()(
   storage: createJSONStorage(() => localStorage),
   version: 1,
   partialize: (state): PersistedState => ({
+    profile: state.profile,
+    run: state.run,
     levelIndex: state.level.index,
     currentNodeId: state.currentNodeId,
     discovered: state.discovered,
@@ -933,8 +1053,14 @@ export const useGameStore = create<GameState>()(
     const level = LEVELS[p.levelIndex] ?? LEVELS[0];
     const clues = p.clues ?? [];
     resumeClueCounter(clues);
+    const profile = mergeProfile(p.profile);
+    // The synth keeps its own copy of the audio settings, so a restored mute has to be pushed
+    // into it here — otherwise the first sound of the session plays at the default volume.
+    setAudioOutput(profile.audio);
     return {
       ...(current as GameState),
+      profile,
+      run: { ...DEFAULT_RUN, ...p.run },
       level,
       currentNodeId: p.currentNodeId ?? level.entryNodeId,
       discovered: p.discovered ?? {},
