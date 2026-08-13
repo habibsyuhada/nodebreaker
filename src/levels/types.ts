@@ -246,4 +246,12 @@ export interface LevelDef {
    * scene.
    */
   coldOpen?: boolean;
+  /**
+   * Expected seconds for a careful (not speedrun) first-time completion — the "on time" line the
+   * run-scoring overtime penalty is measured against. Defaults to `DEFAULT_PAR_SECONDS` in
+   * `engine/runMetrics.ts` if omitted. These are first-pass estimates reasoned from each level's
+   * structural complexity (node count, mechanic count, reading load), not measured from real
+   * playtests — see PROGRESS.md's Stage 18 notes before trusting them for tuning.
+   */
+  parSeconds?: number;
 }

@@ -12,6 +12,7 @@ export const LEVEL_08: LevelDef = {
   ],
   entryNodeId: "halcyon-edge",
   successText: ["ACCESS GRANTED.", "You're in. Keep moving — there's more network to cover."],
+  parSeconds: 900,
   completionRequires: ["exported-core-data"],
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },

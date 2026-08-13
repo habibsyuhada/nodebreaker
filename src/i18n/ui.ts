@@ -89,6 +89,17 @@ export const UI = {
   nextLevel: { en: "Next Level", id: "Level Berikutnya" },
   mainMenu: { en: "Main Menu", id: "Menu Utama" },
 
+  // Run result breakdown — shared between BreachedScreen (full, graded) and BurnedScreen
+  // (partial, ungraded — a burned run never gets a rank). Rank words themselves (GHOST/CLEAN/
+  // LOUD/SLOPPY) stay literal, same convention as ACCESS GRANTED and LEVEL X COMPLETE elsewhere.
+  resultNewBest: { en: "NEW BEST", id: "REKOR BARU" },
+  resultTrace: { en: "PEAK TRACE", id: "TRACE PUNCAK" },
+  resultIntel: { en: "INTEL", id: "INTEL" },
+  resultTime: { en: "TIME", id: "WAKTU" },
+  resultHoneypots: { en: "HONEYPOTS HIT", id: "HONEYPOT KENA" },
+  resultFailedLogins: { en: "FAILED LOGINS", id: "LOGIN GAGAL" },
+  resultSessionStats: { en: "SESSION STATS", id: "STATISTIK SESI" },
+
   // BurnedScreen
   connectionLost: { en: "CONNECTION LOST — NODE BURNED", id: "KONEKSI TERPUTUS — NODE TERBAKAR" },
   burnedBody: {

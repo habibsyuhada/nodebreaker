@@ -11,6 +11,8 @@ export const LEVEL_01: LevelDef = {
   ],
   entryNodeId: "router",
   successText: ["ACCESS GRANTED.", "You're in — admin panel unlocked.", "LEVEL 1 COMPLETE."],
+  // First-pass estimate (structural, not playtested) — see LevelDef.parSeconds's doc comment.
+  parSeconds: 90,
   coldOpen: true,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },

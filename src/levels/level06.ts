@@ -11,6 +11,7 @@ export const LEVEL_06: LevelDef = {
   ],
   entryNodeId: "fleetline-srv",
   successText: ["ACCESS GRANTED.", "You're in — logistics ops console unlocked.", "LEVEL 6 COMPLETE."],
+  parSeconds: 240,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
     closer: {

@@ -11,6 +11,7 @@ export const LEVEL_02: LevelDef = {
   ],
   entryNodeId: "storefront",
   successText: ["ACCESS GRANTED.", "You're in — storefront admin unlocked.", "LEVEL 2 COMPLETE."],
+  parSeconds: 150,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
     closer: { en: "Time to reopen the ticket.", id: "Saatnya buka lagi tiketnya." },

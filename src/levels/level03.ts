@@ -12,6 +12,7 @@ export const LEVEL_03: LevelDef = {
   ],
   entryNodeId: "ledger-srv",
   successText: ["ACCESS GRANTED.", "You're in — file server unlocked.", "LEVEL 3 COMPLETE."],
+  parSeconds: 180,
   completionRequires: ["logs-deleted"],
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },

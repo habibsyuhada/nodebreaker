@@ -13,6 +13,7 @@ import { RestartLevelDialog } from "./components/RestartLevelDialog";
 import { StatusBar } from "./components/StatusBar";
 import { StoryScene } from "./components/StoryScene";
 import { TabBar } from "./components/TabBar";
+import { formatDuration, rankToneClass, type RunResult } from "./engine/runMetrics";
 import { TRACE_HOT_THRESHOLD, TRACE_TICK_INTERVAL_MS } from "./engine/traceSystem";
 import { UI } from "./i18n/ui";
 import { useT } from "./i18n/useT";
@@ -39,6 +40,7 @@ function TraceTicker() {
   const level = useGameStore((s) => s.level);
   const briefingActive = useGameStore((s) => s.briefingActive);
   const markLevelComplete = useGameStore((s) => s.markLevelComplete);
+  const notePeakTrace = useGameStore((s) => s.notePeakTrace);
   const levelComplete = useLevelComplete();
   const hotAlertedRef = useRef(false);
   const completedRef = useRef(false);
@@ -65,6 +67,13 @@ function TraceTicker() {
     }
   }, [traceLevel]);
 
+  // Reacts to traceLevel itself rather than wrapping tickTrace — catches every source of trace
+  // change (ticks, honeypot spikes, Delete Logs/Falsify/Hide reductions) automatically, without
+  // each of those store actions needing to know scoring exists.
+  useEffect(() => {
+    notePeakTrace(traceLevel);
+  }, [traceLevel, notePeakTrace]);
+
   useEffect(() => {
     if (levelComplete && !completedRef.current) {
       completedRef.current = true;
@@ -75,12 +84,58 @@ function TraceTicker() {
   return null;
 }
 
+/** Full graded breakdown, shown once a level is actually completed — see BurnedStats for the ungraded partial version shown on a failed run. */
+function RunResultCard({ result, isNewBest }: { result: RunResult; isNewBest: boolean }) {
+  const t = useT();
+  return (
+    <div className="flex w-full max-w-xs flex-col gap-2 rounded border border-border p-3 text-left text-[11px]">
+      <div className="flex items-center justify-between">
+        <span className={`text-base font-semibold tracking-widest ${rankToneClass(result.rank)}`}>
+          {result.rank}
+        </span>
+        {isNewBest && (
+          <span className="rounded border border-accent/40 px-1.5 py-0.5 text-[9px] tracking-wide text-accent">
+            {t(UI.resultNewBest)}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-text-dim">
+        <span>{t(UI.resultTrace)}</span>
+        <span className="text-right text-text">{result.peakTrace}%</span>
+        <span>{t(UI.resultIntel)}</span>
+        <span className="text-right text-text">
+          {result.cluesFound}/{result.cluesAvailable}
+        </span>
+        <span>{t(UI.resultTime)}</span>
+        <span className="text-right text-text">{formatDuration(result.elapsedMs)}</span>
+        {result.honeypotsTripped > 0 && (
+          <>
+            <span>{t(UI.resultHoneypots)}</span>
+            <span className="text-right text-warn">{result.honeypotsTripped}</span>
+          </>
+        )}
+        {result.failedLogins > 0 && (
+          <>
+            <span>{t(UI.resultFailedLogins)}</span>
+            <span className="text-right text-warn">{result.failedLogins}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BreachedScreen() {
   const t = useT();
   const level = useGameStore((s) => s.level);
   const loadLevel = useGameStore((s) => s.loadLevel);
   const setScreen = useGameStore((s) => s.setScreen);
+  const run = useGameStore((s) => s.run);
+  const bestRun = useGameStore((s) => s.profile.bestRuns[level.id]);
   const nextLevel = LEVELS[level.index + 1];
+  // bestRuns only ever points to this exact completion when it either just became the new best
+  // or was the level's first-ever completion — either way, worth calling out.
+  const isNewBest = run.result !== null && bestRun?.at === run.result.at;
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
@@ -89,6 +144,7 @@ function BreachedScreen() {
       <p className="text-xs text-text-dim">
         {nextLevel ? t(UI.nextTargetOnline) : t(UI.moreLevelsComing)}
       </p>
+      {run.result && <RunResultCard result={run.result} isNewBest={isNewBest} />}
       <div className="flex flex-wrap justify-center gap-2">
         <button
           type="button"
@@ -118,6 +174,28 @@ function BreachedScreen() {
   );
 }
 
+/** Ungraded partial stats on a failed run — no rank/score exists, since a burned run never reaches `computeRunResult`, but showing what was being tracked is exactly where a first-time player learns the scoring exists at all. */
+function BurnedStats() {
+  const t = useT();
+  const run = useGameStore((s) => s.run);
+  const cluesFound = useGameStore((s) => s.clues.length);
+  const elapsedMs = run.startedAt !== null && run.endedAt !== null ? run.endedAt - run.startedAt : 0;
+
+  return (
+    <div className="flex w-full max-w-xs flex-col gap-2 rounded border border-warn/40 p-3 text-left text-[11px]">
+      <span className="text-[10px] tracking-widest text-warn">{t(UI.resultSessionStats)}</span>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-text-dim">
+        <span>{t(UI.resultTrace)}</span>
+        <span className="text-right text-warn">{run.peakTrace}%</span>
+        <span>{t(UI.resultIntel)}</span>
+        <span className="text-right text-text">{cluesFound}</span>
+        <span>{t(UI.resultTime)}</span>
+        <span className="text-right text-text">{formatDuration(elapsedMs)}</span>
+      </div>
+    </div>
+  );
+}
+
 function BurnedScreen() {
   const t = useT();
   const level = useGameStore((s) => s.level);
@@ -134,6 +212,7 @@ function BurnedScreen() {
         {t(UI.connectionLost)}
       </p>
       <p className="text-xs text-text-dim">{t(UI.burnedBody)}</p>
+      <BurnedStats />
       <button
         type="button"
         onClick={() => loadLevel(level.index)}

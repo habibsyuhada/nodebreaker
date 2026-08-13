@@ -859,18 +859,136 @@ tap-hold-inspect hint appeared via `MonologueDialog`; dismissed it and
 fast-forwarded another 50s to confirm the same hint does not refire
 (guarded correctly by its `discovered` fact).
 
+### Stage 18 mechanics added — v1.0 round: run scoring & grading
+
+**Problem:** completion was binary — no score, rank, time, or per-level
+"how well did I do" existed anywhere. Nothing rewarded a careful, quiet
+playthrough over a loud one, nothing gave a reason to replay a finished
+level, and (per Stage 17's own retrospective) nothing yet existed for
+achievements or a Daily Contract to hang off of. `RunResult`/`Rank` were
+typed in `engine/runMetrics.ts` back in Stage 16 specifically so this stage
+wouldn't need to touch persistence again — it only needed to fill in the
+actual measurement and grading logic.
+
+**Design & wiring:**
+- **Metrics collected with minimal new tracking**, per the plan's own
+  cost-flagging: `elapsedMs` derives from `run.startedAt`/`run.endedAt`
+  (not a running counter); `cluesFound` is just `clues.length` at
+  completion; `honeypotsTripped` is derived at completion time by walking
+  the level's node trees and checking which honeypots' `triggeredFact`
+  ended up in `discovered` — no dedicated counter needed, same pattern as
+  `cluesAvailable`. Only two things needed real new plumbing:
+  - `run.peakTrace`: `TraceTicker` (`App.tsx`) already selects `traceLevel`
+    reactively; a new effect keyed on it calls a new `notePeakTrace(value)`
+    store action that only updates if `value` is a new high. This reacts to
+    *every* source of trace change (ticks, honeypot spikes, Delete
+    Logs/Falsify/Hide reductions) automatically, without any of those
+    individual actions needing to know scoring exists — verified
+    incidentally during testing, where a deliberately inconsistent seeded
+    save (`traceLevel: 100` but `run.peakTrace: 82`) self-corrected to 100
+    on load, exactly as the monotonic-max logic should.
+  - `run.failedLogins`: bumped in `confirmLogin`'s failure branch only —
+    `attemptQuickLogin` was checked and structurally cannot fail (its
+    credentials are level-authored constants that always match a real
+    `node.users` entry once its `requiredFacts` gate is open), so it was
+    deliberately left untouched rather than adding a dead code path.
+  - `actionsUsed` was **not** built — flagged in the plan as the weakest
+    signal in the set for the highest edit cost (~15 call sites), and the
+    engineering budget was more useful elsewhere.
+- **`run.startedAt` anchor**: `dismissBriefing` sets it (guarded with `??`
+  against a hypothetical double-dismiss), matching "the player decides when
+  their run starts, same as trace." `coldOpen` levels never fire
+  `dismissBriefing` at all (the whole point of Stage 17's change), so
+  `loadLevel` sets `startedAt` immediately at load time for those — without
+  this, Level 1 (the level every single player reaches first) would have
+  had a permanently null `startedAt` and a meaningless 0ms elapsed time.
+- **`engine/runMetrics.ts`** gained `countAvailableClues` (walks every
+  node's filesystem tree — including honeypot `warningText`, since
+  inspecting one is a legitimate way to encounter its clue — plus port
+  banners, privilege-escalation/backdoor narration, and briefing/success
+  text, collecting distinct `clueKey(type,value)`; deliberately excludes
+  `compares` output, which needs no special handling since the diffed
+  lines are literally the two already-walked files' own content),
+  `countHoneypotsTripped`, `formatDuration` (mm:ss), `rankToneClass`
+  (shared by `App.tsx` and `LevelSelect.tsx`), and `computeRunResult` — a
+  penalty-point formula (100, minus peak trace × 0.6, minus 12 per honeypot
+  tripped, minus 5 per failed login, minus up to 20 for running past
+  `LevelDef.parSeconds`, plus up to 10 for intel thoroughness) rather than
+  a weighted average, chosen specifically so each term could be shown as
+  its own line on the results screen. The intel bonus is capped at
+  `min(1, cluesFound / cluesAvailable)` — `cluesFound` isn't filtered down
+  to markup-only clues the way the denominator is, so without the cap a
+  player who *also* collected decode/crack/leak/combine outputs on top of
+  every markup clue could push the ratio past 1.0 and earn free points for
+  intel that was never actually "available" to find as markup. Thresholds:
+  `GHOST ≥ 90 · CLEAN ≥ 70 · LOUD ≥ 45 · SLOPPY` below that.
+- **`LevelDef.parSeconds`** set on all 8 levels (90/150/180/220/260/240/
+  280/900s, roughly following each level's structural complexity — node
+  count, mechanic count, reading load). **These are first-pass estimates,
+  not measured from real playtests** — the plan this session worked from
+  explicitly flagged that tuning them properly requires a human actually
+  playing all 8 levels at a careful, unhurried pace (a scripted/automated
+  playthrough solves puzzles far faster than a human reads dialogue, so it
+  can't substitute for this). Revisit once real playtest data exists;
+  until then a level reading as too-easy-for-GHOST or
+  impossible-to-GHOST is a par-tuning problem, not an engine bug.
+- **`markLevelComplete`** (fires exactly once per completion, via
+  `TraceTicker`'s existing `completedRef` guard) now computes a
+  `RunResult` via `computeRunResult` and writes it to `run.result`; updates
+  `profile.bestRuns[levelId]` only when the new score is strictly greater
+  than the existing best, so a worse replay can never overwrite a better
+  run. **Burned runs never reach this at all** — `tickTrace` and
+  `goToPath`'s honeypot branch both stamp `run.endedAt` directly on the
+  exact tick/action that first crosses 100% trace (guarded against
+  double-stamping — `tickTrace` already early-returns once `burned`, and
+  `goToPath`'s honeypot branch checks `!state.burned` explicitly since it
+  has no equivalent top-level guard), but neither computes a `RunResult` or
+  touches `bestRuns`, so a failure can never overwrite a good score.
+- **UI**: new `RunResultCard` (full graded breakdown: rank, score's
+  component lines, a `NEW BEST` badge) on `BreachedScreen`; new
+  `BurnedStats` (an *ungraded* partial breakdown — trace/intel/time only,
+  no rank/score, headed "SESSION STATS" rather than a rank line) on
+  `BurnedScreen`, specifically so a losing run still shows the player that
+  something was being measured. `LevelSelect` replaces the binary `DONE`
+  badge with a colored rank chip once `profile.bestRuns[level.id]` exists
+  (falling back to the old `DONE` badge only for a legacy save that has
+  `completedLevels` set but predates this stage). "Is this a new best"
+  is derived without extra state: `bestRuns[levelId]?.at === run.result.at`
+  — `bestRuns` only ever points to *this* completion's timestamp when it
+  either just became the new best or was the level's first-ever
+  completion, so no separate boolean needed to be threaded through.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint` (oxlint), `npm run
+build` all clean. Playwright pass at 390×800: a genuine, scripted Level 1
+completion (read `notes.txt`, quick-login) landed on `BreachedScreen`
+showing a `GHOST` rank card with a `NEW BEST` badge and correct
+`PEAK TRACE 0% / INTEL 0/3 / TIME 0:01` breakdown, and Level Select then
+showed a `GHOST` chip on that row in place of `DONE`. The burned path was
+checked by seeding a save directly (`burned: true` plus populated `run`
+stats) rather than scripting an actual burn — a deliberate scope choice,
+since it verifies the same rendering code the real trigger path writes
+into, without the much heavier cost of automating trace-tick timing or a
+honeypot trap through several unlocked levels — and confirmed
+`CONNECTION LOST` / `SESSION STATS` / the seeded intel and time values all
+render correctly with no rank or score shown.
+
 ## What's next
 
-All 10 stages from the original build order, plus Stages 16–17 above, are
-done — the game is feature-complete and the v1.0 round's cold-start work has
-landed. Reasonable next moves if resuming work on this project (see the
-in-repo plan this session worked from for the full staged breakdown: run
-scoring, share cards, daily contracts, achievements, content i18n, and a
-second chapter of levels, roughly in that order):
+All 10 stages from the original build order, plus Stages 16–18 above, are
+done — the game is feature-complete and the v1.0 round now has a cold start,
+run scoring, and grading in place. Reasonable next moves if resuming work on
+this project (see the in-repo plan this session worked from for the full
+staged breakdown: share cards, daily contracts, achievements, content i18n,
+and a second chapter of levels, roughly in that order):
 
-- **Stage 18 — run scoring & grading**: no score, rank, or achievement exists
-  yet; `RunResult`/`Rank` are typed and ready in `runMetrics.ts` but nothing
-  computes or displays them.
+- **Stage 19 — share card**: a spoiler-free, Wordle-style text block
+  summarizing a run's rank/trace/intel/time, with a `navigator.share` →
+  clipboard → manual-copy fallback chain. Nothing shareable exists yet —
+  this is the biggest unclaimed acquisition lever in the plan, and it's a
+  prerequisite for Stage 20's Daily Contract actually having a reason to be
+  played (retention there comes from streak + share, not puzzle novelty).
+- Real human playtesting to tune `parSeconds` per level — see the Stage 18
+  notes above; the current values are structural estimates, not measured.
 - Manual real-device testing (an actual phone, not just a Playwright
   viewport) — installability prompt, home-screen icon rendering,
   touch/haptic feel, actual airplane-mode offline check — plus verifying the

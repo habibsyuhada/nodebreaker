@@ -5,6 +5,7 @@ import { addClue, resumeClueCounter } from "../engine/clueSystem";
 import type { Clue, ClueInput } from "../engine/clueSystem";
 import { tryCombine } from "../engine/combineRules";
 import { findEntry, tryLogin } from "../engine/nodeState";
+import { computeRunResult } from "../engine/runMetrics";
 import type { RunResult } from "../engine/runMetrics";
 import {
   AMBIENT_TRACE_LOGS,
@@ -316,6 +317,8 @@ interface GameState {
   checkConnections: () => void;
   goQuiet: () => void;
   tickTrace: () => void;
+  /** Bumps `run.peakTrace` if `value` is a new high — called from a traceLevel-reactive effect in TraceTicker, so it catches every source of trace change (ticks, honeypots, reducers) without each of them needing to know about scoring. */
+  notePeakTrace: (value: number) => void;
   attemptQuickLogin: () => void;
 
   /**
@@ -421,13 +424,45 @@ export const useGameStore = create<GameState>()(
 
   completedLevels: {},
   markLevelComplete: (levelId) =>
-    set((state) => ({
-      completedLevels: { ...state.completedLevels, [levelId]: true },
-      outroActive: state.level.id === levelId && Boolean(state.level.outro),
-    })),
+    set((state) => {
+      if (state.level.id !== levelId) {
+        // Defensive — the single call site always passes the current level's own id, but a
+        // RunResult is meaningless for a level that isn't the one actually being completed.
+        return { completedLevels: { ...state.completedLevels, [levelId]: true } };
+      }
+
+      const endedAt = Date.now();
+      const elapsedMs = state.run.startedAt !== null ? endedAt - state.run.startedAt : 0;
+      const result = computeRunResult(
+        state.level,
+        { elapsedMs, peakTrace: state.run.peakTrace, failedLogins: state.run.failedLogins },
+        state.discovered,
+        state.clues.length,
+        endedAt,
+      );
+      const prevBest = state.profile.bestRuns[levelId];
+      const bestRuns =
+        !prevBest || result.score > prevBest.score
+          ? { ...state.profile.bestRuns, [levelId]: result }
+          : state.profile.bestRuns;
+
+      return {
+        completedLevels: { ...state.completedLevels, [levelId]: true },
+        outroActive: Boolean(state.level.outro),
+        run: { ...state.run, endedAt, result },
+        profile: { ...state.profile, bestRuns },
+      };
+    }),
 
   briefingActive: true,
-  dismissBriefing: () => set({ briefingActive: false }),
+  dismissBriefing: () =>
+    set((state) => ({
+      briefingActive: false,
+      // ?? guards against a second dismiss (shouldn't happen, but restarting an already-running
+      // clock would be worse than a no-op) — the player decides when the run clock starts, same
+      // as trace itself.
+      run: { ...state.run, startedAt: state.run.startedAt ?? Date.now() },
+    })),
 
   lang: detectLang(),
   setLang: (lang) => set({ lang, langChosen: true }),
@@ -493,13 +528,17 @@ export const useGameStore = create<GameState>()(
       const lines = honeypot.warningText.map((t) => makeLine(t, "warn"));
       set((state) => {
         const next = clampTrace(state.traceLevel + honeypot.tracePenalty);
+        const burnedNow = next >= TRACE_MAX;
         return {
           currentPath: path,
           openFilePath: null,
           inspectingPath: null,
           discovered: { ...state.discovered, [honeypot.triggeredFact]: true },
           traceLevel: next,
-          burned: next >= TRACE_MAX,
+          burned: burnedNow,
+          // Unlike tickTrace, this path has no top-level "already burned" guard (a burned game
+          // blocks navigation via the UI, not the store), so the state.burned check here matters.
+          run: burnedNow && !state.burned ? { ...state.run, endedAt: Date.now() } : state.run,
           terminalLines: [...state.terminalLines, ...lines],
         };
       });
@@ -761,13 +800,20 @@ export const useGameStore = create<GameState>()(
         }
       : discovered;
 
+    const burnedNow = next >= TRACE_MAX;
     set((state) => ({
       traceLevel: next,
-      burned: next >= TRACE_MAX,
+      burned: burnedNow,
       discovered: nextDiscovered,
       terminalLines: lines.length ? [...state.terminalLines, ...lines] : state.terminalLines,
+      // Reached from tickTrace's own `if (burned) return` guard above: this only runs on the
+      // exact tick that first crosses 100%, so no extra "already burned" check is needed here.
+      run: burnedNow ? { ...state.run, endedAt: Date.now() } : state.run,
     }));
   },
+
+  notePeakTrace: (value) =>
+    set((state) => (value > state.run.peakTrace ? { run: { ...state.run, peakTrace: value } } : {})),
 
   attemptQuickLogin: () => {
     const { level, currentNodeId, discovered } = get();
@@ -844,6 +890,7 @@ export const useGameStore = create<GameState>()(
       accessGrantedNodes: success
         ? { ...state.accessGrantedNodes, [currentNodeId]: true }
         : state.accessGrantedNodes,
+      run: success ? state.run : { ...state.run, failedLogins: state.run.failedLogins + 1 },
       loginPickerOpen: false,
       loginUsernameClueId: null,
       loginPasswordClueId: null,
@@ -886,7 +933,10 @@ export const useGameStore = create<GameState>()(
       crackingClueId: null,
       transformFeedback: null,
       activePanel: "terminal",
-      run: { ...DEFAULT_RUN },
+      // coldOpen levels skip BriefingDialog entirely, so dismissBriefing (the usual place the run
+      // clock starts) never fires — start it here instead. Non-coldOpen levels leave it null; the
+      // player decides when their run starts, same as trace.
+      run: { ...DEFAULT_RUN, startedAt: level.coldOpen ? Date.now() : null },
       lastInteractionAt: Date.now(),
     });
   },

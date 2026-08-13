@@ -1,4 +1,5 @@
 import { IconClues } from "../art/icons";
+import { rankToneClass } from "../engine/runMetrics";
 import { UI } from "../i18n/ui";
 import { useT } from "../i18n/useT";
 import { LEVELS } from "../levels";
@@ -15,6 +16,7 @@ export function LevelSelect() {
   const setScreen = useGameStore((s) => s.setScreen);
   const loadLevel = useGameStore((s) => s.loadLevel);
   const completedLevels = useGameStore((s) => s.completedLevels);
+  const bestRuns = useGameStore((s) => s.profile.bestRuns);
 
   return (
     <div className="flex h-full flex-col">
@@ -36,6 +38,7 @@ export function LevelSelect() {
           {LEVELS.map((level, index) => {
             const unlocked = isUnlocked(index, completedLevels);
             const complete = Boolean(completedLevels[level.id]);
+            const bestRun = bestRuns[level.id];
             const entryNode = level.nodes.find((n) => n.id === level.entryNodeId);
             return (
               <button
@@ -58,10 +61,18 @@ export function LevelSelect() {
                   <span className="text-xs font-medium tracking-wide text-text-bright">
                     {index + 1}. {level.title}
                   </span>
-                  {complete && (
-                    <span className="flex items-center gap-1 text-[10px] tracking-wide text-accent">
-                      <IconClues size={12} /> {t(UI.done)}
+                  {bestRun ? (
+                    <span
+                      className={`flex items-center gap-1 text-[10px] tracking-wide ${rankToneClass(bestRun.rank)}`}
+                    >
+                      <IconClues size={12} /> {bestRun.rank}
                     </span>
+                  ) : (
+                    complete && (
+                      <span className="flex items-center gap-1 text-[10px] tracking-wide text-accent">
+                        <IconClues size={12} /> {t(UI.done)}
+                      </span>
+                    )
                   )}
                   {!unlocked && <span className="text-[10px] tracking-wide text-text-dim">{t(UI.locked)}</span>}
                 </div>
