@@ -3,14 +3,24 @@ import type { LevelDef } from "./types";
 export const LEVEL_02: LevelDef = {
   id: "level-02",
   index: 1,
-  title: "Online Storefront",
+  title: { en: "Online Storefront", id: "Toko Online" },
   briefing: [
-    "Connection established.",
-    "Target: a small online store's admin backend.",
-    "No login page shortcuts here — you'll need to earn the credentials.",
+    { en: "Connection established.", id: "Koneksi berhasil." },
+    {
+      en: "Target: a small online store's admin backend.",
+      id: "Target: backend admin toko online kecil.",
+    },
+    {
+      en: "No login page shortcuts here — you'll need to earn the credentials.",
+      id: "Tidak ada jalan pintas di halaman login — kamu harus mencari kredensialnya sendiri.",
+    },
   ],
   entryNodeId: "storefront",
-  successText: ["ACCESS GRANTED.", "You're in — storefront admin unlocked.", "LEVEL 2 COMPLETE."],
+  successText: [
+    { en: "ACCESS GRANTED.", id: "AKSES DIBERIKAN." },
+    { en: "You're in — storefront admin unlocked.", id: "Kamu masuk — admin toko terbuka." },
+    { en: "LEVEL 2 COMPLETE.", id: "LEVEL 2 SELESAI." },
+  ],
   parSeconds: 150,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
@@ -150,8 +160,10 @@ export const LEVEL_02: LevelDef = {
           {
             name: "about-us.txt",
             kind: "file",
-            content:
-              "Little shop, big heart.\n\nBoutique '98 was started back when getting online at all felt\nlike magic. Fun fact: the very first admin handle around here\nwas literally just the owner's name and the year —\n[[pattern:sarah1998|Owner's name + founding year, an old admin handle]] —\nfrom back when nobody worried much about security.",
+            content: {
+              en: "Little shop, big heart.\n\nBoutique '98 was started back when getting online at all felt\nlike magic. Fun fact: the very first admin handle around here\nwas literally just the owner's name and the year —\n[[pattern:sarah1998|Owner's name + founding year, an old admin handle]] —\nfrom back when nobody worried much about security.",
+              id: "Toko kecil, hati besar.\n\nBoutique '98 dimulai saat online saja masih terasa seperti\nsihir. Fakta menarik: handle admin pertama di sini\ndulu cuma nama pemilik ditambah tahun berdirinya —\n[[pattern:sarah1998|Nama pemilik + tahun berdiri, handle admin lama]] —\ndari masa saat belum ada yang terlalu peduli soal keamanan.",
+            },
           },
           {
             name: "products.csv",
@@ -166,14 +178,18 @@ export const LEVEL_02: LevelDef = {
               {
                 name: "README.txt",
                 kind: "file",
-                content:
-                  "Nightly backups land here automatically.\nRemember to purge old admin exports once you're done with them.",
+                content: {
+                  en: "Nightly backups land here automatically.\nRemember to purge old admin exports once you're done with them.",
+                  id: "Backup malam otomatis tersimpan di sini.\nIngat untuk menghapus ekspor admin lama setelah selesai dipakai.",
+                },
               },
               {
                 name: "users_backup.csv",
                 kind: "file",
-                content:
-                  "export_date,admin_user,last_login\n2019-03-01,[[username:sarahk|Backup admin username]],2019-02-27",
+                content: {
+                  en: "export_date,admin_user,last_login\n2019-03-01,[[username:sarahk|Backup admin username]],2019-02-27",
+                  id: "export_date,admin_user,last_login\n2019-03-01,[[username:sarahk|Username admin backup]],2019-02-27",
+                },
               },
             ],
           },

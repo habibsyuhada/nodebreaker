@@ -972,21 +972,165 @@ honeypot trap through several unlocked levels — and confirmed
 `CONNECTION LOST` / `SESSION STATS` / the seeded intel and time values all
 render correctly with no rank or score shown.
 
+### Stage 19 mechanics added — v1.0 round: shareable result card
+
+**Problem:** nothing a player did in NODEBREAKER could leave the game.
+Completing a level produced a private rank on `BreachedScreen` and nothing
+else — no acquisition loop, no reason for one player's result to reach
+another. Per the plan this round is working from, this is the single
+biggest unclaimed lever for a no-backend, install-driven growth goal: a
+Wordle-style text block is the format that actually spreads (works in any
+chat app, no image rendering, no server), and it's also a hard prerequisite
+for a future Daily Contract mode — a shared daily puzzle is only worth
+returning to if there's something to compare and post.
+
+**Design & wiring:**
+- New `src/engine/shareText.ts` — pure module, `buildShareText(level,
+  result, lang)` renders a fixed five-line block: `NODEBREAKER · Level N —
+  {title}`, `{RANK} — {mm:ss}`, a 10-cell emoji trace bar (green under the
+  warm threshold, yellow under hot, red above — reusing `traceSystem.ts`'s
+  existing thresholds so the bar's color bands always match what the game
+  itself calls "warm"/"hot"), `INTEL found/available`, and the game's
+  canonical URL. Deliberately spoiler-free by construction: no org names,
+  filenames, credentials, or paths — only the level title, which is already
+  public in `LevelSelect` before a level is ever played.
+- New `src/components/ShareButton.tsx` degrades through four tiers, each
+  attempted only if the previous is unavailable or fails: `navigator.share`
+  → `navigator.clipboard.writeText` → a legacy `document.execCommand("copy")`
+  on a temporary off-screen textarea (still the only synchronous copy path
+  on some older in-app webviews) → a visible textarea the player selects
+  and copies by hand. `AbortError` from a user-cancelled share sheet is
+  treated as "done", not a failure that falls through to clipboard — the
+  player already made a choice. Wired onto `BreachedScreen` next to the
+  existing Replay/Next/Menu row.
+- The manual-copy tier needed one real fix: `index.css`'s `body { user-select:
+  none }` (global, for the game's tap-driven UI) would otherwise make the
+  fallback textarea's own text impossible to select. Tailwind's `select-text`
+  utility class on the textarea resolves this for free — a class selector
+  always outranks an element selector in CSS specificity regardless of
+  source order, confirmed by checking the compiled CSS output directly
+  rather than assuming.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint` (oxlint), `npm run
+build` all clean. Playwright pass at 390×800 completed a real Level 1 run
+and confirmed all three reachable tiers: with `clipboard-write` permission
+granted, tapping Share flips the button to "Copied!" and the actual
+clipboard contents were read back and checked — correct rank/trace/intel/
+URL, and confirmed absent of org name, filenames, or credentials; with
+`navigator.share`, `navigator.clipboard`, and `execCommand` all stubbed out
+via an own-property override on `navigator` (a plain `delete` doesn't
+reliably remove these — they're prototype-level accessors on most
+browsers, so the override has to shadow the prototype lookup instead), the
+button correctly fell all the way to the visible manual-copy textarea
+containing the identical text.
+
+### Stage 20 mechanics added — v1.0 round: content i18n (Levels 1–3)
+
+**Problem:** the game's UI chrome (~127 strings) and every intro/outro
+scene were bilingual since Stage 15, but level content itself — titles,
+briefing/success text, file contents, action labels, narration — was
+English-only. For an Indonesian-majority audience this was likely the
+single highest-leverage install/retention gap in the whole v1.0 plan, and
+cheaper to close than it looks: the plan flagged three specific, silent
+failure modes that make this risky to do carelessly, all now enforced by a
+script rather than left to review discipline.
+
+**Design — type promotion:** every level-authored text field became
+`LocalizedText` (`levels/types.ts`): `LevelDef.title/briefing/successText`,
+`FileEntry.content`, `FileMetadata.label/value`, `HoneypotDef.warningText`,
+`QuickLogin.label`, `FileCompareDef.label`, `PivotDef.label`,
+`PrivilegeEscalationDef.label/narrationText/requiredFactHints`,
+`LogFalsificationDef.label`, `BackdoorDef.label/narrationText/
+requiredFactHints`. Deliberately **not** promoted: `PortInfo.banner`,
+`FileEntry.name` (paths/filenames), and CSV-style structured file content
+(`products.csv`) — technical tokens and structured data stay English on
+purpose, both because translating a CSV header is unnatural and because the
+search chips depend on some of these staying literally findable. Since
+`LocalizedText = string | Partial<Record<Lang,string>>`, every existing
+English-only level (4–8) kept compiling and behaving identically with zero
+changes — the promotion is purely additive.
+- Every read site was updated to resolve via `t()`/`translate()`:
+  `gameStore.ts` (`briefingLines`, `successText` pushes in both login
+  paths, honeypot `warningText`, `compareFiles`' diffed content,
+  escalation/backdoor `narrationText` and `requiredFactHints`, a new
+  `humanizeFact(fact, lang)` fallback), `App.tsx`'s `useContextActions()`
+  (six level-authored action labels), `BriefingDialog.tsx`, `LevelSelect.tsx`,
+  `FileBrowser.tsx` (file content, inspect-view metadata), and
+  `engine/nodeState.ts`'s `searchFilesystem`, which gained a `lang`
+  parameter so keyword search resolves the *currently active* language's
+  prose rather than always searching English underneath a translated UI.
+  `engine/runMetrics.ts`'s `countAvailableClues` now resolves every
+  language variant of a field via a new `localizedVariants()` helper before
+  parsing for clue markup, rather than assuming a single string.
+- **Three silent-failure modes, all now caught by a script, not just
+  authoring care** (`scripts/validate-i18n.ts`, `npm run validate-i18n`,
+  new `tsx` devDependency since the project had no TS script runner yet):
+  1. A `[[type:value|label]]` markup's **value** must be byte-identical
+     across every language — only prose and `label` may differ, since
+     `tryLogin`/`transformRules.ts` match by exact value. The validator
+     resolves every content field in both languages and diffs the sets of
+     `clueKey(type,value)`, reporting which keys are missing in which
+     language.
+  2. The six search preset chips are the *only* search input in the game;
+     translated prose that drops a chip's keyword makes a level silently
+     unsolvable via Search. The validator runs `searchFilesystem` for every
+     chip in both languages (through a `Proxy` that reports every fact as
+     discovered, since gating is orthogonal to translation quality) and
+     diffs the matched file paths.
+  3. `FileCompareDef`'s two diffed files must keep equal line counts across
+     languages or Compare Configs' line-by-line diff breaks in one
+     language. The validator checks both `pathA`/`pathB` files' line count
+     per language.
+  All three were verified to actually catch violations (not just pass
+  trivially) by deliberately introducing one of each into `level01.ts`,
+  confirming the exact expected failure message, then reverting — checked
+  with `git diff` that the revert left zero trace.
+- **Translated levels 1–3** end-to-end: titles, briefing/success text, and
+  every file's content, keeping every clue markup value unchanged and
+  keeping technical terms (e.g. "SSH host key", "Password" in a shell
+  command comment) intentionally code-switched into the Indonesian prose
+  rather than translated, specifically to keep chip parity — matches how
+  Indonesian technical writing actually reads, not a compromise. Levels
+  4–8 remain English-only, deferred to a later i18n pass (see below).
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint`, `npm run build`, and
+`npm run validate-i18n` all clean across all 8 levels. Beyond the static
+validator, a full Playwright playthrough switched the game to Bahasa
+Indonesia via Settings and **genuinely completed Levels 1, 2, and 3 start
+to finish reading only the Indonesian text** — including Level 2's real
+keyword search into the translated `backup` folder, tap-to-save on
+translated clue markup, actual pointer-based drag-and-drop into the
+Workbench, `Gabungkan` (Combine) producing the correct password, and Level
+3's trace-enabled node, translated `access.log`/`.bash_history` reads, and
+`Hapus Log` (Delete Logs) to satisfy `completionRequires`. Confirmed
+`GHOST` rank, `REKOR BARU` (New Best), and the Stage 19 share card all
+render correctly in Indonesian on top of the newly-translated content —
+this is the first time content translated in this stage was exercised by
+an actual solve, not just the validator's structural checks.
+
 ## What's next
 
-All 10 stages from the original build order, plus Stages 16–18 above, are
-done — the game is feature-complete and the v1.0 round now has a cold start,
-run scoring, and grading in place. Reasonable next moves if resuming work on
+All 10 stages from the original build order, plus Stages 16–20 above, are
+done — the game is feature-complete and the v1.0 round now has a cold
+start, run scoring and grading, a shareable result card, and Levels 1–3
+translated into Bahasa Indonesia. Reasonable next moves if resuming work on
 this project (see the in-repo plan this session worked from for the full
-staged breakdown: share cards, daily contracts, achievements, content i18n,
+staged breakdown: achievements, daily contracts, the rest of content i18n,
 and a second chapter of levels, roughly in that order):
 
-- **Stage 19 — share card**: a spoiler-free, Wordle-style text block
-  summarizing a run's rank/trace/intel/time, with a `navigator.share` →
-  clipboard → manual-copy fallback chain. Nothing shareable exists yet —
-  this is the biggest unclaimed acquisition lever in the plan, and it's a
-  prerequisite for Stage 20's Daily Contract actually having a reason to be
-  played (retention there comes from streak + share, not puzzle novelty).
+- **Stage 21 — achievements & Ops Record**: ~20–24 local achievements
+  driving off a new `bumpCounter` helper and `profile.counters`, plus a
+  records screen off the Main Menu. Nothing exists yet.
+- **Stage 22 — Daily Contract**: a seeded generator producing a fresh,
+  solvable-by-construction contract every UTC day, with `transformRules.ts`
+  accepting per-level dynamic rules and `LevelSource` replacing the
+  index-based level resolution that a generated (non-`LEVELS`-array) level
+  would otherwise break. This is the biggest remaining content lever in the
+  plan, and now has both a rank (Stage 18) and a share card (Stage 19) to
+  give it a reason to be played daily.
+- **Stage 24 — content i18n, Levels 4–8**: same validated pipeline as
+  Stage 20, just more content. Deferred specifically so Levels 1–3 (where
+  new players actually are) shipped first.
 - Real human playtesting to tune `parSeconds` per level — see the Stage 18
   notes above; the current values are structural estimates, not measured.
 - Manual real-device testing (an actual phone, not just a Playwright

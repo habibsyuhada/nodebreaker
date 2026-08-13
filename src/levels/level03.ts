@@ -3,15 +3,28 @@ import type { LevelDef } from "./types";
 export const LEVEL_03: LevelDef = {
   id: "level-03",
   index: 2,
-  title: "Ledger & Co. Accounting",
+  title: { en: "Ledger & Co. Accounting", id: "Ledger & Co. Akuntansi" },
   briefing: [
-    "Connection established.",
-    "Target: a small accounting firm's file server.",
-    "This one has monitoring. TRACE will climb the longer you linger —",
-    "get in, get what you need, and cover your tracks before you go.",
+    { en: "Connection established.", id: "Koneksi berhasil." },
+    {
+      en: "Target: a small accounting firm's file server.",
+      id: "Target: server file kantor akuntan kecil.",
+    },
+    {
+      en: "This one has monitoring. TRACE will climb the longer you linger —",
+      id: "Yang ini dipantau. TRACE akan naik semakin lama kamu berada di sini —",
+    },
+    {
+      en: "get in, get what you need, and cover your tracks before you go.",
+      id: "masuk, ambil yang kamu butuhkan, dan hapus jejak sebelum keluar.",
+    },
   ],
   entryNodeId: "ledger-srv",
-  successText: ["ACCESS GRANTED.", "You're in — file server unlocked.", "LEVEL 3 COMPLETE."],
+  successText: [
+    { en: "ACCESS GRANTED.", id: "AKSES DIBERIKAN." },
+    { en: "You're in — file server unlocked.", id: "Kamu masuk — server file terbuka." },
+    { en: "LEVEL 3 COMPLETE.", id: "LEVEL 3 SELESAI." },
+  ],
   parSeconds: 180,
   completionRequires: ["logs-deleted"],
   intro: {
@@ -172,8 +185,10 @@ export const LEVEL_03: LevelDef = {
                     name: "access.log",
                     kind: "file",
                     grantsFact: "read-access-log",
-                    content:
-                      "2024-01-14 09:02  [[username:jmartin|Account name flagged in the log]] login OK  from 10.0.0.14 (internal)\n2024-01-14 09:15  jmartin login OK  from 10.0.0.14 (internal)\n2024-01-15 02:47  jmartin login OK  from 185.23.44.109 (unrecognized) — [[pattern:2:47am from an unrecognized host|Suspicious: this session doesn't look like jmartin]]\n2024-01-15 02:49  jmartin ran: mysqldump ledger_db > export.sql",
+                    content: {
+                      en: "2024-01-14 09:02  [[username:jmartin|Account name flagged in the log]] login OK  from 10.0.0.14 (internal)\n2024-01-14 09:15  jmartin login OK  from 10.0.0.14 (internal)\n2024-01-15 02:47  jmartin login OK  from 185.23.44.109 (unrecognized) — [[pattern:2:47am from an unrecognized host|Suspicious: this session doesn't look like jmartin]]\n2024-01-15 02:49  jmartin ran: mysqldump ledger_db > export.sql",
+                      id: "2024-01-14 09:02  [[username:jmartin|Nama akun yang ditandai dalam log]] login OK  from 10.0.0.14 (internal)\n2024-01-14 09:15  jmartin login OK  from 10.0.0.14 (internal)\n2024-01-15 02:47  jmartin login OK  from 185.23.44.109 (unrecognized) — [[pattern:2:47am from an unrecognized host|Mencurigakan: sesi ini kelihatannya bukan jmartin]]\n2024-01-15 02:49  jmartin ran: mysqldump ledger_db > export.sql",
+                    },
                   },
                 ],
               },
@@ -191,8 +206,10 @@ export const LEVEL_03: LevelDef = {
                     name: ".bash_history",
                     kind: "file",
                     grantsFact: "read-history",
-                    content:
-                      "cd /var/www/ledger\nls -la\nmysql -u jmartin -p'[[password:Ledger#2024|Password typed straight into the shell]]' ledger_db\nexit",
+                    content: {
+                      en: "cd /var/www/ledger\nls -la\nmysql -u jmartin -p'[[password:Ledger#2024|Password typed straight into the shell]]' ledger_db\nexit",
+                      id: "cd /var/www/ledger\nls -la\nmysql -u jmartin -p'[[password:Ledger#2024|Password diketik langsung di shell]]' ledger_db\nexit",
+                    },
                   },
                 ],
               },
@@ -201,7 +218,10 @@ export const LEVEL_03: LevelDef = {
           {
             name: "README.txt",
             kind: "file",
-            content: "Ledger & Co. file server. IT ticket #4471: renew the SSH host key (still pending).",
+            content: {
+              en: "Ledger & Co. file server. IT ticket #4471: renew the SSH host key (still pending).",
+              id: "Server file Ledger & Co. Tiket IT #4471: perpanjang SSH host key (masih tertunda).",
+            },
           },
         ],
       },

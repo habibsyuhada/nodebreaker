@@ -10,6 +10,7 @@ import { MonologueDialog } from "./components/MonologueDialog";
 import { NetworkMap } from "./components/NetworkMap";
 import { NetworkMapHint } from "./components/NetworkMapHint";
 import { RestartLevelDialog } from "./components/RestartLevelDialog";
+import { ShareButton } from "./components/ShareButton";
 import { StatusBar } from "./components/StatusBar";
 import { StoryScene } from "./components/StoryScene";
 import { TabBar } from "./components/TabBar";
@@ -145,6 +146,7 @@ function BreachedScreen() {
         {nextLevel ? t(UI.nextTargetOnline) : t(UI.moreLevelsComing)}
       </p>
       {run.result && <RunResultCard result={run.result} isNewBest={isNewBest} />}
+      {run.result && <ShareButton level={level} result={run.result} />}
       <div className="flex flex-wrap justify-center gap-2">
         <button
           type="button"
@@ -400,7 +402,7 @@ function useContextActions(): ContextAction[] {
       if (ready) {
         actions.push({
           id: "falsify-logs",
-          label: node.logFalsification.label,
+          label: t(node.logFalsification.label),
           onClick: falsifyLogs,
           danger: true,
         });
@@ -412,7 +414,7 @@ function useContextActions(): ContextAction[] {
       if (ready && !done) {
         actions.push({
           id: `compare-${compare.id}`,
-          label: compare.label,
+          label: t(compare.label),
           onClick: () => compareFiles(compare.id),
         });
       }
@@ -422,7 +424,7 @@ function useContextActions(): ContextAction[] {
       if (ready) {
         actions.push({
           id: `pivot-${pivot.id}`,
-          label: pivot.label,
+          label: t(pivot.label),
           onClick: () => pivotTo(pivot.id),
         });
       }
@@ -432,7 +434,7 @@ function useContextActions(): ContextAction[] {
       if (accessGranted && !done) {
         actions.push({
           id: `escalate-${esc.id}`,
-          label: esc.label,
+          label: t(esc.label),
           onClick: () => escalatePrivilege(esc.id),
         });
       }
@@ -442,7 +444,7 @@ function useContextActions(): ContextAction[] {
       if (accessGranted && !done) {
         actions.push({
           id: `backdoor-${bd.id}`,
-          label: bd.label,
+          label: t(bd.label),
           onClick: () => plantBackdoor(bd.id),
         });
       }
@@ -454,7 +456,7 @@ function useContextActions(): ContextAction[] {
     if (node.quickLogin) {
       const loginReady = node.quickLogin.requiredFacts.every((f) => discovered[f]);
       if (loginReady) {
-        actions.push({ id: "login", label: node.quickLogin.label, onClick: attemptQuickLogin });
+        actions.push({ id: "login", label: t(node.quickLogin.label), onClick: attemptQuickLogin });
       }
     } else if (!accessGranted) {
       const hasUsername = clues.some((c) => c.type === "username");

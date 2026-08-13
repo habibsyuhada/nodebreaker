@@ -15,7 +15,7 @@ import {
 } from "../engine/traceSystem";
 import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
 import { detectLang, format, t as translate } from "../i18n";
-import type { Lang } from "../i18n";
+import type { Lang, LocalizedText } from "../i18n";
 import { UI } from "../i18n/ui";
 import { LEVELS } from "../levels";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
@@ -154,22 +154,22 @@ function computeLevelComplete(
 }
 
 /** Fallback label for a missing fact when the level data doesn't supply a `requiredFactHints` entry. */
-function humanizeFact(fact: string): string {
-  return `still missing: ${fact.replace(/-/g, " ")}`;
+function humanizeFact(fact: string, lang: Lang): string {
+  return format(translate(UI.stillMissingFact, lang), { fact: fact.replace(/-/g, " ") });
 }
 
 /** Lines for a blocked gated action (privilege escalation / backdoor) — shown as a player monologue, not dumped to the terminal. */
 function missingFactMonologue(
-  label: string,
+  label: LocalizedText,
   requiredFacts: string[],
   discovered: Record<string, true>,
-  hints: Record<string, string> | undefined,
+  hints: Record<string, LocalizedText> | undefined,
   lang: Lang,
 ): string[] {
   const missing = requiredFacts.filter((f) => !discovered[f]);
   return [
-    format(translate(UI.gatedActionBlockedMonologue, lang), { label }),
-    ...missing.map((f) => hints?.[f] ?? humanizeFact(f)),
+    format(translate(UI.gatedActionBlockedMonologue, lang), { label: translate(label, lang) }),
+    ...missing.map((f) => (hints?.[f] ? translate(hints[f], lang) : humanizeFact(f, lang))),
   ];
 }
 
@@ -368,8 +368,8 @@ interface GameState {
   markDiscovered: (fact: string) => void;
 }
 
-function briefingLines(level: LevelDef): TerminalLine[] {
-  return level.briefing.map((text) => makeLine(text, "system"));
+function briefingLines(level: LevelDef, lang: Lang): TerminalLine[] {
+  return level.briefing.map((text) => makeLine(translate(text, lang), "system"));
 }
 
 /**
@@ -506,7 +506,7 @@ export const useGameStore = create<GameState>()(
   accessGrantedNodes: {},
   traceLevel: 0,
   burned: false,
-  terminalLines: briefingLines(LEVELS[0]),
+  terminalLines: briefingLines(LEVELS[0], detectLang()),
   terminalRevealCount: 0,
   setTerminalRevealCount: (count) => set({ terminalRevealCount: count }),
   clues: [],
@@ -519,13 +519,13 @@ export const useGameStore = create<GameState>()(
   transformFeedback: null,
 
   goToPath: (path) => {
-    const { level, currentNodeId, discovered } = get();
+    const { level, currentNodeId, discovered, lang } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const entry = node ? findEntry(node.root, path) : undefined;
     const honeypot = entry?.kind === "dir" ? entry.honeypot : undefined;
 
     if (honeypot && !discovered[honeypot.triggeredFact]) {
-      const lines = honeypot.warningText.map((t) => makeLine(t, "warn"));
+      const lines = honeypot.warningText.map((t) => makeLine(translate(t, lang), "warn"));
       set((state) => {
         const next = clampTrace(state.traceLevel + honeypot.tracePenalty);
         const burnedNow = next >= TRACE_MAX;
@@ -656,7 +656,7 @@ export const useGameStore = create<GameState>()(
   },
 
   compareFiles: (compareId) => {
-    const { level, currentNodeId } = get();
+    const { level, currentNodeId, lang } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const compare = node?.compares?.find((c) => c.id === compareId);
     if (!node || !compare) return;
@@ -664,8 +664,10 @@ export const useGameStore = create<GameState>()(
     const entryB = findEntry(node.root, compare.pathB);
     if (!entryA || !entryB) return;
 
-    const linesA = (entryA.content ?? "").split("\n");
-    const linesB = (entryB.content ?? "").split("\n");
+    // The two languages' content must have matching line counts and matching changed-line
+    // positions for this diff to make sense — enforced by the i18n content validator, not here.
+    const linesA = translate(entryA.content ?? "", lang).split("\n");
+    const linesB = translate(entryB.content ?? "", lang).split("\n");
     const rowCount = Math.max(linesA.length, linesB.length);
     const lines: TerminalLine[] = [
       makeLine(`$ diff ${compare.pathA.at(-1)} ${compare.pathB.at(-1)}`, "input"),
@@ -726,7 +728,7 @@ export const useGameStore = create<GameState>()(
       );
       return;
     }
-    const lines = escalation.narrationText.map((t) => makeLine(t, "success"));
+    const lines = escalation.narrationText.map((t) => makeLine(translate(t, lang), "success"));
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
       discovered: { ...state.discovered, [escalation.grantsFact]: true },
@@ -744,7 +746,7 @@ export const useGameStore = create<GameState>()(
       );
       return;
     }
-    const lines = backdoor.narrationText.map((t) => makeLine(t, "success"));
+    const lines = backdoor.narrationText.map((t) => makeLine(translate(t, lang), "success"));
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
       discovered: { ...state.discovered, [backdoor.grantsFact]: true },
@@ -816,7 +818,7 @@ export const useGameStore = create<GameState>()(
     set((state) => (value > state.run.peakTrace ? { run: { ...state.run, peakTrace: value } } : {})),
 
   attemptQuickLogin: () => {
-    const { level, currentNodeId, discovered } = get();
+    const { level, currentNodeId, discovered, lang } = get();
     const node: LevelNodeDef | undefined = level.nodes.find((n) => n.id === currentNodeId);
     if (!node?.quickLogin) return;
     const { quickLogin } = node;
@@ -829,7 +831,7 @@ export const useGameStore = create<GameState>()(
       makeLine("AUTHENTICATING...", "output"),
     ];
     if (success) {
-      lines.push(...level.successText.map((t) => makeLine(t, "success")));
+      lines.push(...level.successText.map((t) => makeLine(translate(t, lang), "success")));
     } else {
       lines.push(makeLine("ACCESS DENIED.", "warn"));
     }
@@ -868,7 +870,7 @@ export const useGameStore = create<GameState>()(
     set((state) => ({ loginPasswordClueId: state.loginPasswordClueId === id ? null : id })),
 
   confirmLogin: () => {
-    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId } = get();
+    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId, lang } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const usernameClue = clues.find((c) => c.id === loginUsernameClueId);
     const passwordClue = clues.find((c) => c.id === loginPasswordClueId);
@@ -880,7 +882,7 @@ export const useGameStore = create<GameState>()(
       makeLine("AUTHENTICATING...", "output"),
     ];
     if (success) {
-      lines.push(...level.successText.map((t) => makeLine(t, "success")));
+      lines.push(...level.successText.map((t) => makeLine(translate(t, lang), "success")));
     } else {
       lines.push(makeLine("ACCESS DENIED.", "warn"));
     }
@@ -922,7 +924,7 @@ export const useGameStore = create<GameState>()(
       accessGrantedNodes: {},
       traceLevel: 0,
       burned: false,
-      terminalLines: briefingLines(level),
+      terminalLines: briefingLines(level, get().lang),
       terminalRevealCount: 0,
       clues: [],
       workbenchOpen: false,
@@ -1127,6 +1129,7 @@ export const useGameStore = create<GameState>()(
     // The synth keeps its own copy of the audio settings, so a restored mute has to be pushed
     // into it here — otherwise the first sound of the session plays at the default volume.
     setAudioOutput(profile.audio);
+    const lang = p.lang ?? detectLang();
     return {
       ...(current as GameState),
       profile,
@@ -1142,11 +1145,11 @@ export const useGameStore = create<GameState>()(
       briefingActive: p.briefingActive ?? true,
       visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
       networkMapHintShown: p.networkMapHintShown ?? false,
-      lang: p.lang ?? detectLang(),
+      lang,
       langChosen: p.langChosen ?? false,
       introActive: p.introActive ?? false,
       outroActive: p.outroActive ?? false,
-      terminalLines: briefingLines(level),
+      terminalLines: briefingLines(level, lang),
       terminalRevealCount: 0,
     };
   },

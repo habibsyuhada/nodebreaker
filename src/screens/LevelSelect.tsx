@@ -59,7 +59,7 @@ export function LevelSelect() {
               >
                 <div className="flex w-full items-center justify-between gap-2">
                   <span className="text-xs font-medium tracking-wide text-text-bright">
-                    {index + 1}. {level.title}
+                    {index + 1}. {t(level.title)}
                   </span>
                   {bestRun ? (
                     <span

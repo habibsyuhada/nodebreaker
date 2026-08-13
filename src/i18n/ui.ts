@@ -100,6 +100,14 @@ export const UI = {
   resultFailedLogins: { en: "FAILED LOGINS", id: "LOGIN GAGAL" },
   resultSessionStats: { en: "SESSION STATS", id: "STATISTIK SESI" },
 
+  // ShareButton
+  shareResult: { en: "Share Result", id: "Bagikan Hasil" },
+  shareCopied: { en: "Copied!", id: "Tersalin!" },
+  shareManualHint: {
+    en: "Couldn't share directly — copy the text above.",
+    id: "Gak bisa dibagikan langsung — salin teks di atas.",
+  },
+
   // BurnedScreen
   connectionLost: { en: "CONNECTION LOST — NODE BURNED", id: "KONEKSI TERPUTUS — NODE TERBAKAR" },
   burnedBody: {
@@ -209,6 +217,8 @@ export const UI = {
     en: "Not yet — {label} still needs:",
     id: "Belum bisa — {label} masih butuh:",
   },
+  /** Fallback when a gated action's level data doesn't supply its own requiredFactHints entry. */
+  stillMissingFact: { en: "still missing: {fact}", id: "masih kurang: {fact}" },
 
   // GestureCoach — idle-triggered hints, delivered through the same monologue channel as the
   // lines above so they read as the player's own thought rather than a tutorial popup.

@@ -3,14 +3,24 @@ import type { LevelDef } from "./types";
 export const LEVEL_01: LevelDef = {
   id: "level-01",
   index: 0,
-  title: "Neighbor's Router",
+  title: { en: "Neighbor's Router", id: "Router Tetangga" },
   briefing: [
-    "Connection established.",
-    "Target: unsecured router on the local subnet.",
-    "No intrusion detection on this device. Take your time.",
+    { en: "Connection established.", id: "Koneksi berhasil." },
+    {
+      en: "Target: unsecured router on the local subnet.",
+      id: "Target: router tanpa pengamanan di subnet lokal.",
+    },
+    {
+      en: "No intrusion detection on this device. Take your time.",
+      id: "Tidak ada deteksi intrusi di perangkat ini. Santai saja.",
+    },
   ],
   entryNodeId: "router",
-  successText: ["ACCESS GRANTED.", "You're in — admin panel unlocked.", "LEVEL 1 COMPLETE."],
+  successText: [
+    { en: "ACCESS GRANTED.", id: "AKSES DIBERIKAN." },
+    { en: "You're in — admin panel unlocked.", id: "Kamu masuk — panel admin terbuka." },
+    { en: "LEVEL 1 COMPLETE.", id: "LEVEL 1 SELESAI." },
+  ],
   // First-pass estimate (structural, not playtested) — see LevelDef.parSeconds's doc comment.
   parSeconds: 90,
   coldOpen: true,
@@ -120,7 +130,7 @@ export const LEVEL_01: LevelDef = {
         requiredFacts: ["read-notes"],
         username: "admin",
         password: "admin",
-        label: "Login (admin/admin — factory default)",
+        label: { en: "Login (admin/admin — factory default)", id: "Login (admin/admin — bawaan pabrik)" },
       },
       root: {
         name: "/",
@@ -133,8 +143,10 @@ export const LEVEL_01: LevelDef = {
               {
                 name: "dhcp_leases.log",
                 kind: "file",
-                content:
-                  "192.168.1.14  AA:BB:CC:11:22:33  [[pattern:living-room-tv|DHCP hostname]]\n192.168.1.23  AA:BB:CC:44:55:66  [[username:johns-laptop|DHCP hostname — possible username]]",
+                content: {
+                  en: "192.168.1.14  AA:BB:CC:11:22:33  [[pattern:living-room-tv|DHCP hostname]]\n192.168.1.23  AA:BB:CC:44:55:66  [[username:johns-laptop|DHCP hostname — possible username]]",
+                  id: "192.168.1.14  AA:BB:CC:11:22:33  [[pattern:living-room-tv|Nama host DHCP]]\n192.168.1.23  AA:BB:CC:44:55:66  [[username:johns-laptop|Nama host DHCP — kemungkinan username]]",
+                },
               },
             ],
           },
@@ -142,8 +154,10 @@ export const LEVEL_01: LevelDef = {
             name: "notes.txt",
             kind: "file",
             grantsFact: "read-notes",
-            content:
-              "Reminder to self:\n\nStill haven't logged into the router admin panel to change\nanything since the ISP tech set it up. Everything's probably\nstill on whatever it shipped with out of the box.\n\n- M",
+            content: {
+              en: "Reminder to self:\n\nStill haven't logged into the router admin panel to change\nanything since the ISP tech set it up. Everything's probably\nstill on whatever it shipped with out of the box.\n\n- M",
+              id: "Pengingat untuk diri sendiri:\n\nBelum pernah login ke panel admin router untuk mengubah\napa pun sejak teknisi ISP memasangnya. Kemungkinan besar\nsemuanya masih pengaturan bawaan pabrik.\n\n- M",
+            },
           },
           {
             name: "firmware.bin",

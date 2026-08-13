@@ -43,8 +43,9 @@ function SearchView() {
   const searchKeyword = useGameStore((s) => s.searchKeyword);
   const setSearchKeyword = useGameStore((s) => s.setSearchKeyword);
   const openFile = useGameStore((s) => s.openFile);
+  const lang = useGameStore((s) => s.lang);
 
-  const results = searchKeyword ? searchFilesystem(node.root, searchKeyword, discovered) : [];
+  const results = searchKeyword ? searchFilesystem(node.root, searchKeyword, discovered, lang) : [];
 
   return (
     <div className="flex h-full flex-col">
@@ -170,8 +171,8 @@ export function FileBrowser() {
         <div className="flex flex-col gap-2 p-3">
           {(entry?.metadata ?? []).map((m, i) => (
             <div key={i} className="flex items-baseline justify-between gap-3 text-xs">
-              <span className="shrink-0 text-text-dim">{m.label}</span>
-              <span className="text-right text-text-bright">{m.value}</span>
+              <span className="shrink-0 text-text-dim">{t(m.label)}</span>
+              <span className="text-right text-text-bright">{t(m.value)}</span>
             </div>
           ))}
         </div>
@@ -196,7 +197,7 @@ export function FileBrowser() {
             <p className="text-xs text-warn">{t(UI.binaryData)}</p>
           ) : (
             <pre className="whitespace-pre-wrap font-mono text-xs text-text">
-              <HoldableText content={entry?.content ?? ""} source={filename} />
+              <HoldableText content={t(entry?.content ?? "")} source={filename} />
             </pre>
           )}
         </div>

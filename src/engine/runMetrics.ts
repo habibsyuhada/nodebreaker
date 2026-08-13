@@ -1,5 +1,12 @@
+import type { LocalizedText } from "../i18n";
 import type { FileEntry, LevelDef } from "../levels/types";
 import { clueKey, parseHoldableContent } from "./clueSystem";
+
+/** Every language variant of a `LocalizedText` — a plain string is just itself, single-variant. */
+function localizedVariants(text: LocalizedText): string[] {
+  if (typeof text === "string") return [text];
+  return Object.values(text).filter((v): v is string => v !== undefined);
+}
 
 /**
  * Per-run measurement and grading.
@@ -50,9 +57,11 @@ export interface RunResult {
   at: number;
 }
 
-function collectClueKeys(content: string, keys: Set<string>): void {
-  for (const segment of parseHoldableContent(content)) {
-    if (segment.kind === "clue") keys.add(clueKey(segment.type, segment.value));
+function collectClueKeys(content: LocalizedText, keys: Set<string>): void {
+  for (const variant of localizedVariants(content)) {
+    for (const segment of parseHoldableContent(variant)) {
+      if (segment.kind === "clue") keys.add(clueKey(segment.type, segment.value));
+    }
   }
 }
 
