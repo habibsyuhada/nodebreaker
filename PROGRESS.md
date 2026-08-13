@@ -697,14 +697,85 @@ true-duration (both set together in `loadLevel`; `dismissIntro` always
 fires before `dismissBriefing` in the UI flow) and `TraceTicker`'s existing
 `briefingActive` gate, which this stage did not modify.
 
+### Stage 16 — player-monologue dialog replaces toasts, in-game level restart
+
+- **Clue saves and blocked gated actions now surface through a shared
+  "session notes" dialog, not a corner toast or a terminal dump**
+  (`MonologueDialog.tsx`; `gameStore.ts`'s `monologueQueue` /
+  `pushMonologue` / `dismissMonologue`, transient/not persisted, same shape
+  as the notification queue it partly replaces). Previously `saveClue`
+  pushed a `NotificationToast` entry, and a blocked privilege
+  escalation/backdoor attempt (missing `requiredFacts`) dumped
+  `FAILED — preconditions not met.` straight into `terminalLines`. Both now
+  read as the protagonist's own aside — same "You" / "Session Notes —
+  local" framing `StoryScene` already established for the victim scenes —
+  via `missingFactMonologue()` (renamed/reshaped from the old
+  `missingFactLines()`, now returning plain translated strings instead of
+  `TerminalLine[]`, since the destination is a dialog, not the terminal).
+- **Restart Level** (`RestartLevelDialog.tsx`; `restartConfirmOpen` /
+  `openRestartConfirm` / `closeRestartConfirm` in `gameStore.ts`, transient):
+  a confirm-to-restart overlay reachable from Settings whenever `screen ===
+  "game"`, calling the existing `loadLevel(level.index)` — lets a run be
+  abandoned in place instead of backing out to the Main Menu and
+  re-entering Level Select just to retry from scratch.
+- Both new dialogs reuse `PERSON_SPRITE` (added in stage 15) and the
+  `.card-in` animation rather than introducing new art or motion primitives.
+
+### Stage 17 — shipping: GitHub Pages hosting, Google Play release pipeline
+
+- **`deploy-pages.yml`**: builds with `GH_PAGES=true` (vite config switches
+  the base path for the `habibsyuhada.github.io/nodebreaker/` subpath) and
+  publishes to GitHub Pages on every push to `main`, using
+  `actions/configure-pages@v5`'s `enablement: true` so Pages turns itself on
+  on the very first run with no manual Settings click. The workflow's
+  trigger branch list also needs updating whenever the active dev branch is
+  renamed — it lists the live dev branch by name alongside `main` so pushes
+  there are testable on a phone before merge; **keep this in sync** each
+  time the designated branch changes, or Pages silently stops updating
+  from new pushes (this was caught and fixed once already — a prior
+  stage's branch name lingered in the trigger list after that branch was
+  deleted).
+- **`release-play.yml`** (manual, `workflow_dispatch` only — publishing to
+  the Play Store should never happen on every push): wraps the *deployed*
+  PWA (not a local build) as a Trusted Web Activity via Bubblewrap, builds a
+  signed App Bundle, and uploads it to the Play Console via the Play
+  Developer API. `android/twa-manifest.json` holds the non-secret Bubblewrap
+  project config (package id, host, colors, icon URLs); the Android/Gradle
+  project itself is regenerated fresh in CI on every run
+  (`bubblewrap update --skipVersionUpgrade`), not committed. Secrets
+  (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_PASSWORD`, `PLAY_SERVICE_ACCOUNT_JSON`) are decoded to
+  workspace files at run start and explicitly deleted in an `if: always()`
+  cleanup step.
+- **Package id fixed post-first-attempt**: the first real release run failed
+  because the originally-chosen `packageId`
+  (`io.github.habibsyuhada.nodebreaker`) didn't match the app already
+  created in Play Console (`com.skybambooxgame.hackr`, "Hackr: Node
+  Puzzle") — fixed in both `android/twa-manifest.json` and
+  `public/.well-known/assetlinks.json`. **Known gap, needs a human with Play
+  Console access**: `assetlinks.json`'s `sha256_cert_fingerprints` is still
+  the literal placeholder `REPLACE_WITH_APP_SIGNING_CERT_SHA256_FROM_PLAY_CONSOLE`
+  — this can only be filled in *after* a first successful upload, once Play
+  App Signing has generated the real signing cert and it's copied from the
+  Play Console UI. Until that's done, the installed TWA will fall back to
+  showing Chrome Custom Tabs chrome (URL bar visible) instead of running as
+  a trusted, chrome-less standalone app — cosmetic only, not a functional
+  blocker.
+
 ## What's next
 
-All 10 stages from the original build order are done — the game is
-feature-complete: all 8 levels playable end-to-end, PWA installable, saves
-and resumes across reloads, works offline after the first visit. Nothing is
-blocking; anything from here is optional polish, not a gap. Reasonable next
-moves if resuming work on this project:
+All 10 stages from the original build order are done, plus 7 more
+(11-17) covering mobile playtest fixes, victim-scenario storytelling,
+notification/dialog rework, and shipping — the game is feature-complete
+and live: all 8 levels playable end-to-end, PWA installable, saves and
+resumes across reloads, works offline after the first visit, auto-deploys
+to GitHub Pages, and has a working (manual-trigger) Google Play release
+pipeline. Nothing in the app itself is blocking; anything from here is
+optional polish or a human-only step, not a code gap:
 
+- **Play Console fingerprint** (see stage 17 above) — the one remaining
+  step to a fully chrome-less installed Android app, and it requires Play
+  Console access this coding environment doesn't have.
 - Manual real-device testing (an actual phone, not just a 400×800
   Playwright viewport) — installability prompt, home-screen icon rendering,
   touch/haptic feel, actual airplane-mode offline check.
@@ -924,5 +995,4 @@ dengan animasi ketik (bisa di-skip dengan tap). Hormati
 8. Honeypot, metadata, hak akses bertingkat, palsukan log (Level 6-7) ✅
 9. Level 8 endgame + audio prosedural + polish (scanline, haptic, animasi
    ketik) ✅
-10. PWA manifest + service worker + simpan progres di localStorage
-    ⬅ **next**
+10. PWA manifest + service worker + simpan progres di localStorage ✅ selesai

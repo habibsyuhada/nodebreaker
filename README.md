@@ -1,32 +1,37 @@
-# React + TypeScript + Vite
+# NODEBREAKER
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A pixel-art hacking puzzle game for mobile-portrait screens, built as an installable, offline-capable
+PWA. No backend, no login — all progress lives in `localStorage`, and every sprite/icon/sound is
+generated from code (no external image or audio assets).
 
-Currently, two official plugins are available:
+Explore fictional servers, tap-hold text to save clues, combine them on the Workbench, and log in —
+while a trace meter climbs on risky moves. 8 levels, each with a before/after story beat about the
+person on the other end of the hack.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+See [`PROGRESS.md`](./PROGRESS.md) for the full build history, architecture reference, and design
+brief (source of truth for scope).
 
-## React Compiler
+## Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React + Vite + TypeScript
+- Tailwind v4 (`@theme` tokens, see `src/index.css`)
+- Zustand (`persist` middleware for the save file)
+- `vite-plugin-pwa` (manifest + Workbox service worker)
+- Bubblewrap (TWA) for the Google Play release, via `.github/workflows/release-play.yml`
 
-## Expanding the Oxlint configuration
+## Development
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+npm install
+npm run dev       # dev server (no service worker — see PROGRESS.md's PWA notes)
+npm run lint       # oxlint
+npx tsc -b --noEmit
+npm run build      # production build, generates the PWA manifest + service worker
+npm run preview    # serve the production build, for testing PWA/offline behavior
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Deployment
+
+- `deploy-pages.yml` builds and publishes to GitHub Pages on every push to `main`.
+- `release-play.yml` is manual (`workflow_dispatch`) and wraps the deployed PWA as a Trusted Web
+  Activity, then uploads a signed App Bundle to the Play Console.
