@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - claude/victim-scenario-before-after-m76i08
   workflow_dispatch:
 
 permissions:

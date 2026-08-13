@@ -697,17 +697,446 @@ true-duration (both set together in `loadLevel`; `dismissIntro` always
 fires before `dismissBriefing` in the UI flow) and `TraceTicker`'s existing
 `briefingActive` gate, which this stage did not modify.
 
+### Stage 16 mechanics added — v1.0 round: save schema, audio, install, release hygiene
+
+**Problem:** the game was feature-complete but the funnel around it leaked —
+no install prompt was ever shown despite the app being installable, there was
+no way to mute the procedural audio, `assetlinks.json` still had a placeholder
+signing fingerprint (would fail Digital Asset Links verification on the TWA),
+a stale feature branch was still wired into the Pages deploy trigger, and
+`README.md` was still the untouched Vite template. This stage is the
+foundation for the rest of the v1.0 round (scoring, achievements, daily
+contracts) — all of it adds persisted state, and persistence in this store is
+hand-written in three places, so the schema needed to stop growing linearly
+with feature count before more features landed.
+
+**Design — persistence refactor:** `gameStore.ts` gained `ProfileState`
+(`bestRuns`, `counters`, `achievements`, `daily`, `audio`, `footholds` —
+account-wide, survives `loadLevel`) and `RunState` (`startedAt`, `endedAt`,
+`peakTrace`, `failedLogins`, `result` — reset every `loadLevel`, exists now so
+later scoring work has somewhere to write without touching persistence again).
+`RunResult`/`Rank` types live in a new `src/engine/runMetrics.ts` even though
+nothing computes them yet, so `ProfileState.bestRuns` has a stable shape from
+day one. `mergeProfile()` spreads each sub-object individually (`daily`,
+`audio`) rather than relying on one shallow spread, since a save written
+before a new sub-field existed would otherwise rehydrate that field as
+`undefined`. `freshAccount()` centralizes what "Reset Progress" wipes —
+`completedLevels`, `networkMapHintShown`, `profile` (audio setting excluded on
+purpose, so a reset doesn't un-mute the game), `run` — so a future field added
+to the store can't silently survive a reset by accident. `partialize`/`merge`
+now grow by two lines (`profile`, `run`) instead of one line per new field.
+
+**Design — audio mute/volume:** `synth.ts` previously connected every
+oscillator/noise-burst straight to `ctx.destination`, so there was no way to
+silence it short of the OS mute button. Added one `masterGain` node created
+alongside the `AudioContext`; `beep()`/`noiseBurst()` route through it and
+early-return before touching the context at all when `output.muted`.
+`setAudioOutput()` is exported so the store can push `profile.audio` into the
+synth on every change and once after rehydrate (a session's first sound would
+otherwise play at the default volume before the restored setting reached the
+module). Surfaced two places: a speaker icon top-right of `MainMenu`
+(deliberately visible before any sound has ever played) and a mute
+toggle + volume slider in `SettingsPanel`. Also corrected
+`UI.reducedMotionNote`, which claimed sound respected
+`prefers-reduced-motion` — it never did (only `Terminal.tsx`'s
+`playTypeTick` checked it) — rather than wiring up a claim nobody asked for;
+the new mute control supersedes the need for it anyway.
+
+**Design — install prompt:** nothing in the repo listened for
+`beforeinstallprompt` — the PWA was installable but never asked to be. New
+`src/pwa/installPrompt.ts` registers the listener at module load (imported
+for its side effect from `main.tsx`, before React mounts, since the browser
+can fire the event before anything renders) and exposes
+`useInstallAvailable()` via `useSyncExternalStore` plus a `promptInstall()`
+that calls the deferred event's `.prompt()`. `MainMenu` shows an Install
+button only when the browser has actually offered one. Verified in a headless
+Playwright pass that the button stays correctly hidden under `npm run dev`
+(no service worker/manifest in dev mode, so no installability signal exists
+to trigger the event) and that nothing else on the menu regressed.
+
+**Release hygiene:** `deploy-pages.yml`'s push trigger no longer includes the
+merged `claude/victim-scenario-before-after-m76i08` branch. `README.md`
+rewritten to actually describe the game, stack, dev commands, and the two
+deploy workflows instead of the stock Vite/React template text.
+**`public/.well-known/assetlinks.json` still has the placeholder
+`REPLACE_WITH_APP_SIGNING_CERT_SHA256_FROM_PLAY_CONSOLE`** — this couldn't be
+fixed here since the real value is the app's Play Console signing
+certificate's SHA-256 fingerprint, which only the account holder has; until
+it's filled in, the TWA will fail Digital Asset Links verification and show a
+browser URL bar instead of a clean full-screen app.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint` (oxlint), `npm run build`
+all clean. Playwright-driven pass at 390×800 confirmed: mute toggle flips the
+MainMenu speaker icon and the setting survives a reload; Settings shows the
+Sound toggle and a working volume slider; Level Select and Level 1's intro
+scene still render and navigate normally with no new console errors.
+
+### Stage 17 mechanics added — v1.0 round: first 90 seconds
+
+**Problem:** cold start was a stack of blocking overlays — `LanguagePicker`
+→ MainMenu → LevelSelect → Level 1's 5-card intro scene → `BriefingDialog` —
+before a player could touch anything. MainMenu's only real call to action for
+a brand-new player was "Select Level", one screen removed from actually
+playing. There was no way to mute audio (fixed in Stage 16) and no idle
+coaching at all — the original design brief called for a "subtle hint after
+45s idle" (`PROGRESS.md`'s brief section, "Aturan onboarding") that never
+shipped in the original 10-stage build.
+
+**Design & wiring:**
+- **Language stops blocking.** New `detectLang()` in `src/i18n/index.ts`
+  reads `navigator.language`; the store's initial `lang` and `merge`'s
+  fallback both use it instead of a hardcoded `"en"`. `LanguagePicker.tsx`
+  (the old full-screen first-run overlay) is deleted outright rather than
+  kept dormant — nothing referenced it once the blocking render in `App.tsx`
+  was removed. In its place, a small dismissable `LanguageChip` in
+  `MainMenu.tsx` offers a one-tap override of the auto-detected guess
+  ("Bahasa Indonesia?" / "English?" depending on current `lang`) with an
+  explicit `×` to dismiss without changing anything; either action sets
+  `langChosen` via the existing `setLang`, so the chip never reappears once
+  acted on. `langChosen` itself is repurposed from "gate the blocking
+  overlay" to "has the player ever confirmed or overridden the guess" — a
+  much lower-stakes flag now.
+- **Direct START path.** `MainMenu` shows a primary `START` button
+  (`loadLevel(0)` + `setScreen("game")`) for a player with no progress;
+  `Continue` takes its place once progress exists. `Select Level` is
+  secondary in both cases — removes a full screen from the cold path for
+  first-time players.
+- **`LevelDef.coldOpen?: boolean`** (`levels/types.ts`) — `loadLevel` sets
+  `briefingActive: !level.coldOpen`. The skipped dialog's lines aren't lost;
+  they still type into the Terminal via the existing `briefingLines()`, only
+  the extra blocking tap goes away. Level 1 sets `coldOpen: true` and its
+  `intro` was trimmed from 5 cards to 3 (dropped the scene-setting and
+  brush-off cards, keeping named-victim-harmed → perpetrator-gloating →
+  player's plan) — Stage 15's outro mirrors each intro card by id via
+  `answers`, so the now-orphaned `l1-outro-cap` (which mirrored the dropped
+  card) was removed too, keeping both scenes card-for-card symmetric at 3
+  cards each rather than leaving a dangling reference that would silently
+  drop its struck-through payoff line (`StoryScene`'s `findAnsweredLine`
+  degrades gracefully to no strikethrough on a miss, but that's a bug worth
+  avoiding, not a fallback worth relying on).
+- **Live-terminal title screen.** New `TitleTerminal.tsx`: a small,
+  self-contained typewriter boot sequence ("establishing local link...",
+  "shell ready.") rendered inline in `MainMenu`, deliberately not using the
+  store's `terminalLines` (that's game state, this is decoration). The
+  button stack is a sibling, not gated by this component in any way — it
+  renders and is tappable from the very first frame regardless of animation
+  progress. Tapping the boot-text block itself jumps straight to the
+  finished text, mirroring the in-game Terminal's own tap-to-skip. Extracted
+  the reduced-motion hook the in-game `Terminal.tsx` already had into shared
+  `src/hooks/usePrefersReducedMotion.ts` rather than duplicating it, since
+  both components now need the identical behavior.
+- **Idle gesture coaching.** Store gained `lastInteractionAt` (epoch ms,
+  transient — not persisted, restarting the idle window on reload is
+  harmless) and `touchInteraction()`, called from a single `onPointerDown`
+  on `App.tsx`'s root wrapper rather than one listener per component. New
+  `markDiscovered(fact)` generic store action so one-off guard flags don't
+  each need a bespoke action. New `GestureCoach.tsx` (mounted beside
+  `TraceTicker`, renders `null`): every 5s, if idle ≥ 45s, checks three
+  hints in priority order — browsing a directory with nothing discovered
+  yet (teaches tap-hold-to-inspect), a file open with zero clues saved
+  (teaches tap-hold-to-save), and ≥2 clues with the Workbench never opened
+  (teaches combining) — each derived from existing state with no new
+  tracking beyond the guard itself, and each gated to fire at most once per
+  level via a `discovered` fact (`hint-*-shown`). Delivered through the
+  existing `pushMonologue` "session notes" channel rather than a new popup,
+  so the in-fiction voice stays consistent and the project's "no tutorial
+  popups" rule holds — it reads as the player's own thought, not an
+  interruption.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint` (oxlint), `npm run build`
+all clean. Playwright pass at 390×800 confirmed: cold boot lands directly on
+MainMenu with `START` visible and the non-blocking language chip present, no
+blocking overlay; tapping `START` → 3-card intro → `Continue` lands directly
+in a live, playable Terminal with no `BriefingDialog` modal in between;
+`START` is clickable before the title terminal's boot animation finishes,
+and tapping the boot-text block skips it instantly. The idle-hint path was
+verified by installing Playwright's fake clock *before* navigating (a real
+`window.setInterval` created after a late clock install isn't retroactively
+captured by it, so the component's own interval would otherwise keep
+ticking on real wall-clock time) — navigated into a directory with nothing
+discovered, fast-forwarded 50s of virtual time, and confirmed the
+tap-hold-inspect hint appeared via `MonologueDialog`; dismissed it and
+fast-forwarded another 50s to confirm the same hint does not refire
+(guarded correctly by its `discovered` fact).
+
+### Stage 18 mechanics added — v1.0 round: run scoring & grading
+
+**Problem:** completion was binary — no score, rank, time, or per-level
+"how well did I do" existed anywhere. Nothing rewarded a careful, quiet
+playthrough over a loud one, nothing gave a reason to replay a finished
+level, and (per Stage 17's own retrospective) nothing yet existed for
+achievements or a Daily Contract to hang off of. `RunResult`/`Rank` were
+typed in `engine/runMetrics.ts` back in Stage 16 specifically so this stage
+wouldn't need to touch persistence again — it only needed to fill in the
+actual measurement and grading logic.
+
+**Design & wiring:**
+- **Metrics collected with minimal new tracking**, per the plan's own
+  cost-flagging: `elapsedMs` derives from `run.startedAt`/`run.endedAt`
+  (not a running counter); `cluesFound` is just `clues.length` at
+  completion; `honeypotsTripped` is derived at completion time by walking
+  the level's node trees and checking which honeypots' `triggeredFact`
+  ended up in `discovered` — no dedicated counter needed, same pattern as
+  `cluesAvailable`. Only two things needed real new plumbing:
+  - `run.peakTrace`: `TraceTicker` (`App.tsx`) already selects `traceLevel`
+    reactively; a new effect keyed on it calls a new `notePeakTrace(value)`
+    store action that only updates if `value` is a new high. This reacts to
+    *every* source of trace change (ticks, honeypot spikes, Delete
+    Logs/Falsify/Hide reductions) automatically, without any of those
+    individual actions needing to know scoring exists — verified
+    incidentally during testing, where a deliberately inconsistent seeded
+    save (`traceLevel: 100` but `run.peakTrace: 82`) self-corrected to 100
+    on load, exactly as the monotonic-max logic should.
+  - `run.failedLogins`: bumped in `confirmLogin`'s failure branch only —
+    `attemptQuickLogin` was checked and structurally cannot fail (its
+    credentials are level-authored constants that always match a real
+    `node.users` entry once its `requiredFacts` gate is open), so it was
+    deliberately left untouched rather than adding a dead code path.
+  - `actionsUsed` was **not** built — flagged in the plan as the weakest
+    signal in the set for the highest edit cost (~15 call sites), and the
+    engineering budget was more useful elsewhere.
+- **`run.startedAt` anchor**: `dismissBriefing` sets it (guarded with `??`
+  against a hypothetical double-dismiss), matching "the player decides when
+  their run starts, same as trace." `coldOpen` levels never fire
+  `dismissBriefing` at all (the whole point of Stage 17's change), so
+  `loadLevel` sets `startedAt` immediately at load time for those — without
+  this, Level 1 (the level every single player reaches first) would have
+  had a permanently null `startedAt` and a meaningless 0ms elapsed time.
+- **`engine/runMetrics.ts`** gained `countAvailableClues` (walks every
+  node's filesystem tree — including honeypot `warningText`, since
+  inspecting one is a legitimate way to encounter its clue — plus port
+  banners, privilege-escalation/backdoor narration, and briefing/success
+  text, collecting distinct `clueKey(type,value)`; deliberately excludes
+  `compares` output, which needs no special handling since the diffed
+  lines are literally the two already-walked files' own content),
+  `countHoneypotsTripped`, `formatDuration` (mm:ss), `rankToneClass`
+  (shared by `App.tsx` and `LevelSelect.tsx`), and `computeRunResult` — a
+  penalty-point formula (100, minus peak trace × 0.6, minus 12 per honeypot
+  tripped, minus 5 per failed login, minus up to 20 for running past
+  `LevelDef.parSeconds`, plus up to 10 for intel thoroughness) rather than
+  a weighted average, chosen specifically so each term could be shown as
+  its own line on the results screen. The intel bonus is capped at
+  `min(1, cluesFound / cluesAvailable)` — `cluesFound` isn't filtered down
+  to markup-only clues the way the denominator is, so without the cap a
+  player who *also* collected decode/crack/leak/combine outputs on top of
+  every markup clue could push the ratio past 1.0 and earn free points for
+  intel that was never actually "available" to find as markup. Thresholds:
+  `GHOST ≥ 90 · CLEAN ≥ 70 · LOUD ≥ 45 · SLOPPY` below that.
+- **`LevelDef.parSeconds`** set on all 8 levels (90/150/180/220/260/240/
+  280/900s, roughly following each level's structural complexity — node
+  count, mechanic count, reading load). **These are first-pass estimates,
+  not measured from real playtests** — the plan this session worked from
+  explicitly flagged that tuning them properly requires a human actually
+  playing all 8 levels at a careful, unhurried pace (a scripted/automated
+  playthrough solves puzzles far faster than a human reads dialogue, so it
+  can't substitute for this). Revisit once real playtest data exists;
+  until then a level reading as too-easy-for-GHOST or
+  impossible-to-GHOST is a par-tuning problem, not an engine bug.
+- **`markLevelComplete`** (fires exactly once per completion, via
+  `TraceTicker`'s existing `completedRef` guard) now computes a
+  `RunResult` via `computeRunResult` and writes it to `run.result`; updates
+  `profile.bestRuns[levelId]` only when the new score is strictly greater
+  than the existing best, so a worse replay can never overwrite a better
+  run. **Burned runs never reach this at all** — `tickTrace` and
+  `goToPath`'s honeypot branch both stamp `run.endedAt` directly on the
+  exact tick/action that first crosses 100% trace (guarded against
+  double-stamping — `tickTrace` already early-returns once `burned`, and
+  `goToPath`'s honeypot branch checks `!state.burned` explicitly since it
+  has no equivalent top-level guard), but neither computes a `RunResult` or
+  touches `bestRuns`, so a failure can never overwrite a good score.
+- **UI**: new `RunResultCard` (full graded breakdown: rank, score's
+  component lines, a `NEW BEST` badge) on `BreachedScreen`; new
+  `BurnedStats` (an *ungraded* partial breakdown — trace/intel/time only,
+  no rank/score, headed "SESSION STATS" rather than a rank line) on
+  `BurnedScreen`, specifically so a losing run still shows the player that
+  something was being measured. `LevelSelect` replaces the binary `DONE`
+  badge with a colored rank chip once `profile.bestRuns[level.id]` exists
+  (falling back to the old `DONE` badge only for a legacy save that has
+  `completedLevels` set but predates this stage). "Is this a new best"
+  is derived without extra state: `bestRuns[levelId]?.at === run.result.at`
+  — `bestRuns` only ever points to *this* completion's timestamp when it
+  either just became the new best or was the level's first-ever
+  completion, so no separate boolean needed to be threaded through.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint` (oxlint), `npm run
+build` all clean. Playwright pass at 390×800: a genuine, scripted Level 1
+completion (read `notes.txt`, quick-login) landed on `BreachedScreen`
+showing a `GHOST` rank card with a `NEW BEST` badge and correct
+`PEAK TRACE 0% / INTEL 0/3 / TIME 0:01` breakdown, and Level Select then
+showed a `GHOST` chip on that row in place of `DONE`. The burned path was
+checked by seeding a save directly (`burned: true` plus populated `run`
+stats) rather than scripting an actual burn — a deliberate scope choice,
+since it verifies the same rendering code the real trigger path writes
+into, without the much heavier cost of automating trace-tick timing or a
+honeypot trap through several unlocked levels — and confirmed
+`CONNECTION LOST` / `SESSION STATS` / the seeded intel and time values all
+render correctly with no rank or score shown.
+
+### Stage 19 mechanics added — v1.0 round: shareable result card
+
+**Problem:** nothing a player did in NODEBREAKER could leave the game.
+Completing a level produced a private rank on `BreachedScreen` and nothing
+else — no acquisition loop, no reason for one player's result to reach
+another. Per the plan this round is working from, this is the single
+biggest unclaimed lever for a no-backend, install-driven growth goal: a
+Wordle-style text block is the format that actually spreads (works in any
+chat app, no image rendering, no server), and it's also a hard prerequisite
+for a future Daily Contract mode — a shared daily puzzle is only worth
+returning to if there's something to compare and post.
+
+**Design & wiring:**
+- New `src/engine/shareText.ts` — pure module, `buildShareText(level,
+  result, lang)` renders a fixed five-line block: `NODEBREAKER · Level N —
+  {title}`, `{RANK} — {mm:ss}`, a 10-cell emoji trace bar (green under the
+  warm threshold, yellow under hot, red above — reusing `traceSystem.ts`'s
+  existing thresholds so the bar's color bands always match what the game
+  itself calls "warm"/"hot"), `INTEL found/available`, and the game's
+  canonical URL. Deliberately spoiler-free by construction: no org names,
+  filenames, credentials, or paths — only the level title, which is already
+  public in `LevelSelect` before a level is ever played.
+- New `src/components/ShareButton.tsx` degrades through four tiers, each
+  attempted only if the previous is unavailable or fails: `navigator.share`
+  → `navigator.clipboard.writeText` → a legacy `document.execCommand("copy")`
+  on a temporary off-screen textarea (still the only synchronous copy path
+  on some older in-app webviews) → a visible textarea the player selects
+  and copies by hand. `AbortError` from a user-cancelled share sheet is
+  treated as "done", not a failure that falls through to clipboard — the
+  player already made a choice. Wired onto `BreachedScreen` next to the
+  existing Replay/Next/Menu row.
+- The manual-copy tier needed one real fix: `index.css`'s `body { user-select:
+  none }` (global, for the game's tap-driven UI) would otherwise make the
+  fallback textarea's own text impossible to select. Tailwind's `select-text`
+  utility class on the textarea resolves this for free — a class selector
+  always outranks an element selector in CSS specificity regardless of
+  source order, confirmed by checking the compiled CSS output directly
+  rather than assuming.
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint` (oxlint), `npm run
+build` all clean. Playwright pass at 390×800 completed a real Level 1 run
+and confirmed all three reachable tiers: with `clipboard-write` permission
+granted, tapping Share flips the button to "Copied!" and the actual
+clipboard contents were read back and checked — correct rank/trace/intel/
+URL, and confirmed absent of org name, filenames, or credentials; with
+`navigator.share`, `navigator.clipboard`, and `execCommand` all stubbed out
+via an own-property override on `navigator` (a plain `delete` doesn't
+reliably remove these — they're prototype-level accessors on most
+browsers, so the override has to shadow the prototype lookup instead), the
+button correctly fell all the way to the visible manual-copy textarea
+containing the identical text.
+
+### Stage 20 mechanics added — v1.0 round: content i18n (Levels 1–3)
+
+**Problem:** the game's UI chrome (~127 strings) and every intro/outro
+scene were bilingual since Stage 15, but level content itself — titles,
+briefing/success text, file contents, action labels, narration — was
+English-only. For an Indonesian-majority audience this was likely the
+single highest-leverage install/retention gap in the whole v1.0 plan, and
+cheaper to close than it looks: the plan flagged three specific, silent
+failure modes that make this risky to do carelessly, all now enforced by a
+script rather than left to review discipline.
+
+**Design — type promotion:** every level-authored text field became
+`LocalizedText` (`levels/types.ts`): `LevelDef.title/briefing/successText`,
+`FileEntry.content`, `FileMetadata.label/value`, `HoneypotDef.warningText`,
+`QuickLogin.label`, `FileCompareDef.label`, `PivotDef.label`,
+`PrivilegeEscalationDef.label/narrationText/requiredFactHints`,
+`LogFalsificationDef.label`, `BackdoorDef.label/narrationText/
+requiredFactHints`. Deliberately **not** promoted: `PortInfo.banner`,
+`FileEntry.name` (paths/filenames), and CSV-style structured file content
+(`products.csv`) — technical tokens and structured data stay English on
+purpose, both because translating a CSV header is unnatural and because the
+search chips depend on some of these staying literally findable. Since
+`LocalizedText = string | Partial<Record<Lang,string>>`, every existing
+English-only level (4–8) kept compiling and behaving identically with zero
+changes — the promotion is purely additive.
+- Every read site was updated to resolve via `t()`/`translate()`:
+  `gameStore.ts` (`briefingLines`, `successText` pushes in both login
+  paths, honeypot `warningText`, `compareFiles`' diffed content,
+  escalation/backdoor `narrationText` and `requiredFactHints`, a new
+  `humanizeFact(fact, lang)` fallback), `App.tsx`'s `useContextActions()`
+  (six level-authored action labels), `BriefingDialog.tsx`, `LevelSelect.tsx`,
+  `FileBrowser.tsx` (file content, inspect-view metadata), and
+  `engine/nodeState.ts`'s `searchFilesystem`, which gained a `lang`
+  parameter so keyword search resolves the *currently active* language's
+  prose rather than always searching English underneath a translated UI.
+  `engine/runMetrics.ts`'s `countAvailableClues` now resolves every
+  language variant of a field via a new `localizedVariants()` helper before
+  parsing for clue markup, rather than assuming a single string.
+- **Three silent-failure modes, all now caught by a script, not just
+  authoring care** (`scripts/validate-i18n.ts`, `npm run validate-i18n`,
+  new `tsx` devDependency since the project had no TS script runner yet):
+  1. A `[[type:value|label]]` markup's **value** must be byte-identical
+     across every language — only prose and `label` may differ, since
+     `tryLogin`/`transformRules.ts` match by exact value. The validator
+     resolves every content field in both languages and diffs the sets of
+     `clueKey(type,value)`, reporting which keys are missing in which
+     language.
+  2. The six search preset chips are the *only* search input in the game;
+     translated prose that drops a chip's keyword makes a level silently
+     unsolvable via Search. The validator runs `searchFilesystem` for every
+     chip in both languages (through a `Proxy` that reports every fact as
+     discovered, since gating is orthogonal to translation quality) and
+     diffs the matched file paths.
+  3. `FileCompareDef`'s two diffed files must keep equal line counts across
+     languages or Compare Configs' line-by-line diff breaks in one
+     language. The validator checks both `pathA`/`pathB` files' line count
+     per language.
+  All three were verified to actually catch violations (not just pass
+  trivially) by deliberately introducing one of each into `level01.ts`,
+  confirming the exact expected failure message, then reverting — checked
+  with `git diff` that the revert left zero trace.
+- **Translated levels 1–3** end-to-end: titles, briefing/success text, and
+  every file's content, keeping every clue markup value unchanged and
+  keeping technical terms (e.g. "SSH host key", "Password" in a shell
+  command comment) intentionally code-switched into the Indonesian prose
+  rather than translated, specifically to keep chip parity — matches how
+  Indonesian technical writing actually reads, not a compromise. Levels
+  4–8 remain English-only, deferred to a later i18n pass (see below).
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint`, `npm run build`, and
+`npm run validate-i18n` all clean across all 8 levels. Beyond the static
+validator, a full Playwright playthrough switched the game to Bahasa
+Indonesia via Settings and **genuinely completed Levels 1, 2, and 3 start
+to finish reading only the Indonesian text** — including Level 2's real
+keyword search into the translated `backup` folder, tap-to-save on
+translated clue markup, actual pointer-based drag-and-drop into the
+Workbench, `Gabungkan` (Combine) producing the correct password, and Level
+3's trace-enabled node, translated `access.log`/`.bash_history` reads, and
+`Hapus Log` (Delete Logs) to satisfy `completionRequires`. Confirmed
+`GHOST` rank, `REKOR BARU` (New Best), and the Stage 19 share card all
+render correctly in Indonesian on top of the newly-translated content —
+this is the first time content translated in this stage was exercised by
+an actual solve, not just the validator's structural checks.
+
 ## What's next
 
-All 10 stages from the original build order are done — the game is
-feature-complete: all 8 levels playable end-to-end, PWA installable, saves
-and resumes across reloads, works offline after the first visit. Nothing is
-blocking; anything from here is optional polish, not a gap. Reasonable next
-moves if resuming work on this project:
+All 10 stages from the original build order, plus Stages 16–20 above, are
+done — the game is feature-complete and the v1.0 round now has a cold
+start, run scoring and grading, a shareable result card, and Levels 1–3
+translated into Bahasa Indonesia. Reasonable next moves if resuming work on
+this project (see the in-repo plan this session worked from for the full
+staged breakdown: achievements, daily contracts, the rest of content i18n,
+and a second chapter of levels, roughly in that order):
 
-- Manual real-device testing (an actual phone, not just a 400×800
-  Playwright viewport) — installability prompt, home-screen icon rendering,
-  touch/haptic feel, actual airplane-mode offline check.
+- **Stage 21 — achievements & Ops Record**: ~20–24 local achievements
+  driving off a new `bumpCounter` helper and `profile.counters`, plus a
+  records screen off the Main Menu. Nothing exists yet.
+- **Stage 22 — Daily Contract**: a seeded generator producing a fresh,
+  solvable-by-construction contract every UTC day, with `transformRules.ts`
+  accepting per-level dynamic rules and `LevelSource` replacing the
+  index-based level resolution that a generated (non-`LEVELS`-array) level
+  would otherwise break. This is the biggest remaining content lever in the
+  plan, and now has both a rank (Stage 18) and a share card (Stage 19) to
+  give it a reason to be played daily.
+- **Stage 24 — content i18n, Levels 4–8**: same validated pipeline as
+  Stage 20, just more content. Deferred specifically so Levels 1–3 (where
+  new players actually are) shipped first.
+- Real human playtesting to tune `parSeconds` per level — see the Stage 18
+  notes above; the current values are structural estimates, not measured.
+- Manual real-device testing (an actual phone, not just a Playwright
+  viewport) — installability prompt, home-screen icon rendering,
+  touch/haptic feel, actual airplane-mode offline check — plus verifying the
+  TWA once `assetlinks.json` has a real fingerprint.
 - More levels beyond the original 8, if desired — the engine's "types →
   store action → ContextAction" pattern (see below) scales to new mechanics
   without rework, and Level 8's node count could grow from 4 toward the

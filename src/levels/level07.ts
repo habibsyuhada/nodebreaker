@@ -16,6 +16,7 @@ export const LEVEL_07: LevelDef = {
     "The real records will need more than this.",
   ],
   completionRequires: ["read-citizen-records", "logs-falsified"],
+  parSeconds: 280,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
     closer: {

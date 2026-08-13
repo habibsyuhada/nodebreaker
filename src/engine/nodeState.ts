@@ -1,4 +1,6 @@
 import { stripHoldMarkup } from "./clueSystem";
+import type { Lang } from "../i18n";
+import { t } from "../i18n";
 import type { FileEntry, LevelNodeDef } from "../levels/types";
 
 export function findEntry(root: FileEntry, path: readonly string[]): FileEntry | undefined {
@@ -51,6 +53,7 @@ export function searchFilesystem(
   root: FileEntry,
   keyword: string,
   discovered: Record<string, true>,
+  lang: Lang,
 ): SearchResult[] {
   const results: SearchResult[] = [];
   const lowerKeyword = keyword.toLowerCase();
@@ -59,7 +62,7 @@ export function searchFilesystem(
     if (entry.kind === "file") {
       if (entry.readable === false) return;
       if (entry.requiresFact && !discovered[entry.requiresFact]) return;
-      const content = stripHoldMarkup(entry.content ?? "");
+      const content = stripHoldMarkup(t(entry.content ?? "", lang));
       const matchLine = content.split("\n").find((l) => l.toLowerCase().includes(lowerKeyword));
       const nameMatches = entry.name.toLowerCase().includes(lowerKeyword);
       if (matchLine || nameMatches) {

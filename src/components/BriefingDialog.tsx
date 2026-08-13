@@ -23,7 +23,7 @@ export function BriefingDialog() {
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-bg p-6 text-center">
       <Sprite grid={LOCK_SPRITE} palette={BASE_PALETTE} size={48} title="target node" />
       <p className="text-[10px] tracking-widest text-text-dim">{t(UI.incomingJob)}</p>
-      <h1 className="text-sm font-semibold tracking-widest text-accent">{level.title}</h1>
+      <h1 className="text-sm font-semibold tracking-widest text-accent">{t(level.title)}</h1>
       {entryNode && (
         <p className="text-xs text-text-dim">
           {t(UI.target)} <span className="text-text-bright">{entryNode.ip}</span> — {entryNode.orgName}
@@ -31,7 +31,7 @@ export function BriefingDialog() {
       )}
       <div className="flex max-w-xs flex-col gap-2 text-xs leading-relaxed text-text">
         {level.briefing.map((line, i) => (
-          <p key={i}>{line}</p>
+          <p key={i}>{t(line)}</p>
         ))}
       </div>
       <button

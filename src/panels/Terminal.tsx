@@ -2,20 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { playTypeTick } from "../audio/synth";
 import { HoldableText } from "../components/HoldableText";
 import { stripHoldMarkup } from "../engine/clueSystem";
+import { usePrefersReducedMotion } from "../hooks/usePrefersReducedMotion";
 import { type TerminalTone, useGameStore } from "../store/gameStore";
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const handler = () => setReduced(mq.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-  return reduced;
-}
 
 const TONE_CLASS: Record<TerminalTone, string> = {
   input: "text-text-bright",

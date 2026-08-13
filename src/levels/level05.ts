@@ -11,6 +11,7 @@ export const LEVEL_05: LevelDef = {
   ],
   entryNodeId: "riverside-public",
   successText: ["ACCESS GRANTED.", "You're in — internal ops dashboard unlocked.", "LEVEL 5 COMPLETE."],
+  parSeconds: 260,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
     closer: {

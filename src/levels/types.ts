@@ -7,8 +7,8 @@ export interface PortInfo {
 }
 
 export interface FileMetadata {
-  label: string;
-  value: string;
+  label: LocalizedText;
+  value: LocalizedText;
 }
 
 /**
@@ -21,14 +21,18 @@ export interface HoneypotDef {
   /** Fact id set the first time this fires, so re-entering the folder doesn't spike trace again. */
   triggeredFact: string;
   /** Terminal lines appended (warn tone) when the trap fires. */
-  warningText: string[];
+  warningText: LocalizedText[];
 }
 
 export interface FileEntry {
   name: string;
   kind: "file" | "dir";
-  /** Plain text content, only for kind "file" and readable !== false. */
-  content?: string;
+  /**
+   * Plain text content, only for kind "file" and readable !== false. Any `[[type:value|label]]`
+   * clue markup inside must use the exact same `value` across every language variant — only the
+   * surrounding prose and the `label` may differ. See the i18n content validator.
+   */
+  content?: LocalizedText;
   /** false = binary/unreadable — opening it shows a placeholder instead of content. Defaults to true. */
   readable?: boolean;
   /** Fact id granted the first time this file is opened (drives what actions unlock next). */
@@ -68,7 +72,7 @@ export interface QuickLogin {
   username: string;
   password: string;
   /** Action-bar button label, e.g. "Login (admin/default)". */
-  label: string;
+  label: LocalizedText;
 }
 
 /**
@@ -79,7 +83,7 @@ export interface QuickLogin {
 export interface FileCompareDef {
   id: string;
   /** Action-bar button label, e.g. "Compare Configs". */
-  label: string;
+  label: LocalizedText;
   pathA: string[];
   pathB: string[];
   /** Facts required before this action appears — typically "both files have been read". */
@@ -98,7 +102,7 @@ export interface PivotDef {
   id: string;
   targetNodeId: string;
   /** Action-bar button label, e.g. "Pivot to 192.168.20.5". */
-  label: string;
+  label: LocalizedText;
   requiredFacts: string[];
 }
 
@@ -111,17 +115,17 @@ export interface PivotDef {
 export interface PrivilegeEscalationDef {
   id: string;
   /** Action-bar button label, e.g. "Drop Payload". */
-  label: string;
+  label: LocalizedText;
   requiredFacts: string[];
   grantsFact: string;
   /** Terminal lines appended (success tone) when it runs. */
-  narrationText: string[];
+  narrationText: LocalizedText[];
   /**
    * Human-readable explanation per entry in `requiredFacts`, shown in a player-monologue dialog
    * when the player triggers this action before that fact is discovered — so a failed attempt
    * tells them what to go do next instead of the action just silently staying unavailable.
    */
-  requiredFactHints?: Record<string, string>;
+  requiredFactHints?: Record<string, LocalizedText>;
 }
 
 /**
@@ -134,7 +138,7 @@ export interface LogFalsificationDef {
   requiredFacts: string[];
   tracePenaltyReduction: number;
   /** Action-bar button label, e.g. "Falsify Logs". */
-  label: string;
+  label: LocalizedText;
 }
 
 /**
@@ -146,17 +150,17 @@ export interface LogFalsificationDef {
 export interface BackdoorDef {
   id: string;
   /** Action-bar button label, e.g. "Plant Backdoor". */
-  label: string;
+  label: LocalizedText;
   requiredFacts: string[];
   grantsFact: string;
   /** Terminal lines appended (success tone) when it runs. */
-  narrationText: string[];
+  narrationText: LocalizedText[];
   /**
    * Human-readable explanation per entry in `requiredFacts`, shown in a player-monologue dialog
    * when the player triggers this action before that fact is discovered — so a failed attempt
    * tells them what to go do next instead of the action just silently staying unavailable.
    */
-  requiredFactHints?: Record<string, string>;
+  requiredFactHints?: Record<string, LocalizedText>;
 }
 
 export interface LevelNodeDef {
@@ -222,13 +226,13 @@ export interface SceneDef {
 export interface LevelDef {
   id: string;
   index: number;
-  title: string;
+  title: LocalizedText;
   /** Lines typed into the terminal when the level loads. */
-  briefing: string[];
+  briefing: LocalizedText[];
   entryNodeId: string;
   nodes: LevelNodeDef[];
   /** Lines typed into the terminal on a successful login. */
-  successText: string[];
+  successText: LocalizedText[];
   /**
    * Extra fact ids required (beyond a successful login) before the level counts as complete.
    * E.g. level 3 requires "logs-deleted" — access alone isn't enough, you have to cover your tracks.
@@ -238,4 +242,20 @@ export interface LevelDef {
   intro?: SceneDef;
   /** After-hack scene shown once the level completes — mirrors intro cards via SceneCard.answers. */
   outro?: SceneDef;
+  /**
+   * Skips BriefingDialog on load. Only meaningful when `briefing` alone is enough context to
+   * start playing — the same lines still get typed into the Terminal via `briefingLines()`, so
+   * nothing is lost, only the extra blocking tap. Meant for Level 1, where a first-time player's
+   * very first level shouldn't be gated behind a modal after already sitting through an intro
+   * scene.
+   */
+  coldOpen?: boolean;
+  /**
+   * Expected seconds for a careful (not speedrun) first-time completion — the "on time" line the
+   * run-scoring overtime penalty is measured against. Defaults to `DEFAULT_PAR_SECONDS` in
+   * `engine/runMetrics.ts` if omitted. These are first-pass estimates reasoned from each level's
+   * structural complexity (node count, mechanic count, reading load), not measured from real
+   * playtests — see PROGRESS.md's Stage 18 notes before trusting them for tuning.
+   */
+  parSeconds?: number;
 }

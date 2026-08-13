@@ -12,6 +12,7 @@ export const LEVEL_04: LevelDef = {
   ],
   entryNodeId: "nimbus-app",
   successText: ["ACCESS GRANTED.", "You're in — deploy pipeline unlocked.", "LEVEL 4 COMPLETE."],
+  parSeconds: 220,
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
     closer: {

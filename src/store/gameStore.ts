@@ -1,9 +1,12 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { setAudioOutput } from "../audio/synth";
 import { addClue, resumeClueCounter } from "../engine/clueSystem";
 import type { Clue, ClueInput } from "../engine/clueSystem";
 import { tryCombine } from "../engine/combineRules";
 import { findEntry, tryLogin } from "../engine/nodeState";
+import { computeRunResult } from "../engine/runMetrics";
+import type { RunResult } from "../engine/runMetrics";
 import {
   AMBIENT_TRACE_LOGS,
   clampTrace,
@@ -11,8 +14,8 @@ import {
   traceLogFactId,
 } from "../engine/traceSystem";
 import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
-import { format, t as translate } from "../i18n";
-import type { Lang } from "../i18n";
+import { detectLang, format, t as translate } from "../i18n";
+import type { Lang, LocalizedText } from "../i18n";
 import { UI } from "../i18n/ui";
 import { LEVELS } from "../levels";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
@@ -39,6 +42,99 @@ export interface MonologueEntry {
   lines: string[];
 }
 
+export interface AudioSettings {
+  muted: boolean;
+  /** 0..1, multiplied into every generated sound via the synth's master gain. */
+  volume: number;
+}
+
+/**
+ * Everything the player accumulates across levels, as one nested object.
+ *
+ * Persistence in this store is hand-written in three places (the `PersistedState` interface,
+ * `partialize`, and `merge`), so every new top-level persisted field is three edits and one
+ * chance to forget. Nesting account-wide state here means those three places stop growing:
+ * new profile fields only need a default in `DEFAULT_PROFILE` and a spread in `mergeProfile`.
+ */
+export interface ProfileState {
+  /** Best (not latest) result per level id — a worse replay never overwrites a better run. */
+  bestRuns: Record<string, RunResult>;
+  /** Free-form tallies driving achievements, bumped through the single `bumpCounter` helper. */
+  counters: Record<string, number>;
+  /** Achievement id -> epoch ms it was unlocked. */
+  achievements: Record<string, number>;
+  daily: {
+    /** Seed of the most recently completed daily contract, or null if none ever was. */
+    lastCompletedSeed: string | null;
+    streak: number;
+    longest: number;
+  };
+  audio: AudioSettings;
+  /** Level ids where a persistent foothold was planted — read by later levels that gate on one. */
+  footholds: Record<string, true>;
+}
+
+/**
+ * Measurements for the run currently in progress. Reset by `loadLevel`, unlike `ProfileState`.
+ * Kept separate from the profile precisely so `loadLevel` can clear it in one assignment.
+ */
+export interface RunState {
+  /** Set when the briefing is dismissed — the clock starts when the player starts it, like trace. */
+  startedAt: number | null;
+  endedAt: number | null;
+  peakTrace: number;
+  failedLogins: number;
+  /** The graded result, once the run has completed successfully. Null while in progress or burned. */
+  result: RunResult | null;
+}
+
+const DEFAULT_PROFILE: ProfileState = {
+  bestRuns: {},
+  counters: {},
+  achievements: {},
+  daily: { lastCompletedSeed: null, streak: 0, longest: 0 },
+  audio: { muted: false, volume: 0.8 },
+  footholds: {},
+};
+
+const DEFAULT_RUN: RunState = {
+  startedAt: null,
+  endedAt: null,
+  peakTrace: 0,
+  failedLogins: 0,
+  result: null,
+};
+
+/**
+ * Restores a persisted profile onto the current defaults.
+ *
+ * A single shallow spread is not enough: `{...DEFAULT_PROFILE, ...persisted}` would replace whole
+ * sub-objects, so a save written before a new sub-field existed (say `daily.longest`) would
+ * rehydrate that field as undefined. Each sub-object therefore gets its own spread.
+ */
+function mergeProfile(persisted: Partial<ProfileState> | undefined): ProfileState {
+  return {
+    ...DEFAULT_PROFILE,
+    ...persisted,
+    daily: { ...DEFAULT_PROFILE.daily, ...persisted?.daily },
+    audio: { ...DEFAULT_PROFILE.audio, ...persisted?.audio },
+  };
+}
+
+/**
+ * Everything "Reset Progress" wipes, in one place — so account-wide state can't be added to the
+ * store and silently survive a reset. Preferences are deliberately not progress: the language
+ * choice and the audio settings carry over, since wiping a save shouldn't un-mute the game.
+ */
+function freshAccount(current: ProfileState) {
+  return {
+    completedLevels: {} as Record<string, true>,
+    networkMapHintShown: false,
+    profile: { ...DEFAULT_PROFILE, audio: { ...current.audio } },
+    run: { ...DEFAULT_RUN },
+  };
+}
+
 let lineCounter = 0;
 function makeLine(text: string, tone: TerminalTone): TerminalLine {
   lineCounter += 1;
@@ -58,22 +154,22 @@ function computeLevelComplete(
 }
 
 /** Fallback label for a missing fact when the level data doesn't supply a `requiredFactHints` entry. */
-function humanizeFact(fact: string): string {
-  return `still missing: ${fact.replace(/-/g, " ")}`;
+function humanizeFact(fact: string, lang: Lang): string {
+  return format(translate(UI.stillMissingFact, lang), { fact: fact.replace(/-/g, " ") });
 }
 
 /** Lines for a blocked gated action (privilege escalation / backdoor) — shown as a player monologue, not dumped to the terminal. */
 function missingFactMonologue(
-  label: string,
+  label: LocalizedText,
   requiredFacts: string[],
   discovered: Record<string, true>,
-  hints: Record<string, string> | undefined,
+  hints: Record<string, LocalizedText> | undefined,
   lang: Lang,
 ): string[] {
   const missing = requiredFacts.filter((f) => !discovered[f]);
   return [
-    format(translate(UI.gatedActionBlockedMonologue, lang), { label }),
-    ...missing.map((f) => hints?.[f] ?? humanizeFact(f)),
+    format(translate(UI.gatedActionBlockedMonologue, lang), { label: translate(label, lang) }),
+    ...missing.map((f) => (hints?.[f] ? translate(hints[f], lang) : humanizeFact(f, lang))),
   ];
 }
 
@@ -87,6 +183,13 @@ interface GameState {
   /** Which top-level screen is showing — always boots to "menu" regardless of saved progress. */
   screen: ScreenId;
   setScreen: (screen: ScreenId) => void;
+
+  /** Account-wide accumulated state — see ProfileState. Survives loadLevel, wiped by resetProgress. */
+  profile: ProfileState;
+  /** Measurements for the run in progress — see RunState. Reset by loadLevel. */
+  run: RunState;
+  /** Updates audio preferences and applies them to the synth immediately. */
+  setAudio: (patch: Partial<AudioSettings>) => void;
 
   /** Level ids that have been completed at least once — drives Level Select's lock/checkmark state. */
   completedLevels: Record<string, true>;
@@ -103,9 +206,13 @@ interface GameState {
 
   /** UI language for scene content (SceneCard/SceneDef text) — persisted, doesn't affect other UI strings. */
   lang: Lang;
-  /** Sets lang and marks langChosen true — used by both the first-run LanguagePicker and the Settings toggle. */
+  /** Sets lang and marks langChosen true — used by both the Settings toggle and the MainMenu's dismissable language chip. */
   setLang: (lang: Lang) => void;
-  /** False until the player has ever picked a language (LanguagePicker or Settings) — gates a blocking first-run overlay above every screen. Persisted. */
+  /**
+   * False until the player has ever explicitly confirmed or overridden the auto-detected
+   * language — gates a small, non-blocking suggestion chip on MainMenu, not a first-run overlay.
+   * `lang` itself is always usable from the very first boot via `detectLang()`. Persisted.
+   */
   langChosen: boolean;
 
   /**
@@ -210,6 +317,8 @@ interface GameState {
   checkConnections: () => void;
   goQuiet: () => void;
   tickTrace: () => void;
+  /** Bumps `run.peakTrace` if `value` is a new high — called from a traceLevel-reactive effect in TraceTicker, so it catches every source of trace change (ticks, honeypots, reducers) without each of them needing to know about scoring. */
+  notePeakTrace: (value: number) => void;
   attemptQuickLogin: () => void;
 
   /**
@@ -246,10 +355,21 @@ interface GameState {
 
   /** Wipes the localStorage save and returns to a fresh Level 1. */
   resetProgress: () => void;
+
+  /**
+   * Epoch ms of the last real pointer interaction anywhere in the app — updated by one listener
+   * on the app root (App.tsx), not per component. Drives GestureCoach's idle-hint timer. Reset by
+   * `loadLevel` so each level gets its own fresh idle window. Transient — not persisted, since
+   * restarting the idle timer after a reload is harmless.
+   */
+  lastInteractionAt: number;
+  touchInteraction: () => void;
+  /** Generic one-off fact setter — used by GestureCoach so its once-per-level hint guards don't need a bespoke store action each. */
+  markDiscovered: (fact: string) => void;
 }
 
-function briefingLines(level: LevelDef): TerminalLine[] {
-  return level.briefing.map((text) => makeLine(text, "system"));
+function briefingLines(level: LevelDef, lang: Lang): TerminalLine[] {
+  return level.briefing.map((text) => makeLine(translate(text, lang), "system"));
 }
 
 /**
@@ -262,6 +382,13 @@ function briefingLines(level: LevelDef): TerminalLine[] {
  * in particular always boots to "menu" on purpose, even with a save present.
  */
 interface PersistedState {
+  /**
+   * Account-wide state and the in-progress run's measurements. These two nest everything added
+   * from the scoring/achievements/daily work onward, so this interface, `partialize`, and `merge`
+   * stop growing a line per feature — see ProfileState's note.
+   */
+  profile: ProfileState;
+  run: RunState;
   levelIndex: number;
   currentNodeId: string;
   discovered: Record<string, true>;
@@ -287,17 +414,57 @@ export const useGameStore = create<GameState>()(
       screen: "menu",
   setScreen: (screen) => set({ screen }),
 
+  profile: DEFAULT_PROFILE,
+  run: DEFAULT_RUN,
+  setAudio: (patch) => {
+    const audio = { ...get().profile.audio, ...patch };
+    setAudioOutput(audio);
+    set((state) => ({ profile: { ...state.profile, audio } }));
+  },
+
   completedLevels: {},
   markLevelComplete: (levelId) =>
-    set((state) => ({
-      completedLevels: { ...state.completedLevels, [levelId]: true },
-      outroActive: state.level.id === levelId && Boolean(state.level.outro),
-    })),
+    set((state) => {
+      if (state.level.id !== levelId) {
+        // Defensive — the single call site always passes the current level's own id, but a
+        // RunResult is meaningless for a level that isn't the one actually being completed.
+        return { completedLevels: { ...state.completedLevels, [levelId]: true } };
+      }
+
+      const endedAt = Date.now();
+      const elapsedMs = state.run.startedAt !== null ? endedAt - state.run.startedAt : 0;
+      const result = computeRunResult(
+        state.level,
+        { elapsedMs, peakTrace: state.run.peakTrace, failedLogins: state.run.failedLogins },
+        state.discovered,
+        state.clues.length,
+        endedAt,
+      );
+      const prevBest = state.profile.bestRuns[levelId];
+      const bestRuns =
+        !prevBest || result.score > prevBest.score
+          ? { ...state.profile.bestRuns, [levelId]: result }
+          : state.profile.bestRuns;
+
+      return {
+        completedLevels: { ...state.completedLevels, [levelId]: true },
+        outroActive: Boolean(state.level.outro),
+        run: { ...state.run, endedAt, result },
+        profile: { ...state.profile, bestRuns },
+      };
+    }),
 
   briefingActive: true,
-  dismissBriefing: () => set({ briefingActive: false }),
+  dismissBriefing: () =>
+    set((state) => ({
+      briefingActive: false,
+      // ?? guards against a second dismiss (shouldn't happen, but restarting an already-running
+      // clock would be worse than a no-op) — the player decides when the run clock starts, same
+      // as trace itself.
+      run: { ...state.run, startedAt: state.run.startedAt ?? Date.now() },
+    })),
 
-  lang: "en",
+  lang: detectLang(),
   setLang: (lang) => set({ lang, langChosen: true }),
   langChosen: false,
 
@@ -339,7 +506,7 @@ export const useGameStore = create<GameState>()(
   accessGrantedNodes: {},
   traceLevel: 0,
   burned: false,
-  terminalLines: briefingLines(LEVELS[0]),
+  terminalLines: briefingLines(LEVELS[0], detectLang()),
   terminalRevealCount: 0,
   setTerminalRevealCount: (count) => set({ terminalRevealCount: count }),
   clues: [],
@@ -352,22 +519,26 @@ export const useGameStore = create<GameState>()(
   transformFeedback: null,
 
   goToPath: (path) => {
-    const { level, currentNodeId, discovered } = get();
+    const { level, currentNodeId, discovered, lang } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const entry = node ? findEntry(node.root, path) : undefined;
     const honeypot = entry?.kind === "dir" ? entry.honeypot : undefined;
 
     if (honeypot && !discovered[honeypot.triggeredFact]) {
-      const lines = honeypot.warningText.map((t) => makeLine(t, "warn"));
+      const lines = honeypot.warningText.map((t) => makeLine(translate(t, lang), "warn"));
       set((state) => {
         const next = clampTrace(state.traceLevel + honeypot.tracePenalty);
+        const burnedNow = next >= TRACE_MAX;
         return {
           currentPath: path,
           openFilePath: null,
           inspectingPath: null,
           discovered: { ...state.discovered, [honeypot.triggeredFact]: true },
           traceLevel: next,
-          burned: next >= TRACE_MAX,
+          burned: burnedNow,
+          // Unlike tickTrace, this path has no top-level "already burned" guard (a burned game
+          // blocks navigation via the UI, not the store), so the state.burned check here matters.
+          run: burnedNow && !state.burned ? { ...state.run, endedAt: Date.now() } : state.run,
           terminalLines: [...state.terminalLines, ...lines],
         };
       });
@@ -485,7 +656,7 @@ export const useGameStore = create<GameState>()(
   },
 
   compareFiles: (compareId) => {
-    const { level, currentNodeId } = get();
+    const { level, currentNodeId, lang } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const compare = node?.compares?.find((c) => c.id === compareId);
     if (!node || !compare) return;
@@ -493,8 +664,10 @@ export const useGameStore = create<GameState>()(
     const entryB = findEntry(node.root, compare.pathB);
     if (!entryA || !entryB) return;
 
-    const linesA = (entryA.content ?? "").split("\n");
-    const linesB = (entryB.content ?? "").split("\n");
+    // The two languages' content must have matching line counts and matching changed-line
+    // positions for this diff to make sense — enforced by the i18n content validator, not here.
+    const linesA = translate(entryA.content ?? "", lang).split("\n");
+    const linesB = translate(entryB.content ?? "", lang).split("\n");
     const rowCount = Math.max(linesA.length, linesB.length);
     const lines: TerminalLine[] = [
       makeLine(`$ diff ${compare.pathA.at(-1)} ${compare.pathB.at(-1)}`, "input"),
@@ -555,7 +728,7 @@ export const useGameStore = create<GameState>()(
       );
       return;
     }
-    const lines = escalation.narrationText.map((t) => makeLine(t, "success"));
+    const lines = escalation.narrationText.map((t) => makeLine(translate(t, lang), "success"));
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
       discovered: { ...state.discovered, [escalation.grantsFact]: true },
@@ -573,7 +746,7 @@ export const useGameStore = create<GameState>()(
       );
       return;
     }
-    const lines = backdoor.narrationText.map((t) => makeLine(t, "success"));
+    const lines = backdoor.narrationText.map((t) => makeLine(translate(t, lang), "success"));
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
       discovered: { ...state.discovered, [backdoor.grantsFact]: true },
@@ -629,16 +802,23 @@ export const useGameStore = create<GameState>()(
         }
       : discovered;
 
+    const burnedNow = next >= TRACE_MAX;
     set((state) => ({
       traceLevel: next,
-      burned: next >= TRACE_MAX,
+      burned: burnedNow,
       discovered: nextDiscovered,
       terminalLines: lines.length ? [...state.terminalLines, ...lines] : state.terminalLines,
+      // Reached from tickTrace's own `if (burned) return` guard above: this only runs on the
+      // exact tick that first crosses 100%, so no extra "already burned" check is needed here.
+      run: burnedNow ? { ...state.run, endedAt: Date.now() } : state.run,
     }));
   },
 
+  notePeakTrace: (value) =>
+    set((state) => (value > state.run.peakTrace ? { run: { ...state.run, peakTrace: value } } : {})),
+
   attemptQuickLogin: () => {
-    const { level, currentNodeId, discovered } = get();
+    const { level, currentNodeId, discovered, lang } = get();
     const node: LevelNodeDef | undefined = level.nodes.find((n) => n.id === currentNodeId);
     if (!node?.quickLogin) return;
     const { quickLogin } = node;
@@ -651,7 +831,7 @@ export const useGameStore = create<GameState>()(
       makeLine("AUTHENTICATING...", "output"),
     ];
     if (success) {
-      lines.push(...level.successText.map((t) => makeLine(t, "success")));
+      lines.push(...level.successText.map((t) => makeLine(translate(t, lang), "success")));
     } else {
       lines.push(makeLine("ACCESS DENIED.", "warn"));
     }
@@ -690,7 +870,7 @@ export const useGameStore = create<GameState>()(
     set((state) => ({ loginPasswordClueId: state.loginPasswordClueId === id ? null : id })),
 
   confirmLogin: () => {
-    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId } = get();
+    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId, lang } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const usernameClue = clues.find((c) => c.id === loginUsernameClueId);
     const passwordClue = clues.find((c) => c.id === loginPasswordClueId);
@@ -702,7 +882,7 @@ export const useGameStore = create<GameState>()(
       makeLine("AUTHENTICATING...", "output"),
     ];
     if (success) {
-      lines.push(...level.successText.map((t) => makeLine(t, "success")));
+      lines.push(...level.successText.map((t) => makeLine(translate(t, lang), "success")));
     } else {
       lines.push(makeLine("ACCESS DENIED.", "warn"));
     }
@@ -712,6 +892,7 @@ export const useGameStore = create<GameState>()(
       accessGrantedNodes: success
         ? { ...state.accessGrantedNodes, [currentNodeId]: true }
         : state.accessGrantedNodes,
+      run: success ? state.run : { ...state.run, failedLogins: state.run.failedLogins + 1 },
       loginPickerOpen: false,
       loginUsernameClueId: null,
       loginPasswordClueId: null,
@@ -722,7 +903,7 @@ export const useGameStore = create<GameState>()(
     const level = LEVELS[index];
     if (!level) return;
     set({
-      briefingActive: true,
+      briefingActive: !level.coldOpen,
       introActive: Boolean(level.intro),
       outroActive: false,
       monologueQueue: [],
@@ -743,7 +924,7 @@ export const useGameStore = create<GameState>()(
       accessGrantedNodes: {},
       traceLevel: 0,
       burned: false,
-      terminalLines: briefingLines(level),
+      terminalLines: briefingLines(level, get().lang),
       terminalRevealCount: 0,
       clues: [],
       workbenchOpen: false,
@@ -754,6 +935,11 @@ export const useGameStore = create<GameState>()(
       crackingClueId: null,
       transformFeedback: null,
       activePanel: "terminal",
+      // coldOpen levels skip BriefingDialog entirely, so dismissBriefing (the usual place the run
+      // clock starts) never fires — start it here instead. Non-coldOpen levels leave it null; the
+      // player decides when their run starts, same as trace.
+      run: { ...DEFAULT_RUN, startedAt: level.coldOpen ? Date.now() : null },
+      lastInteractionAt: Date.now(),
     });
   },
 
@@ -902,15 +1088,21 @@ export const useGameStore = create<GameState>()(
 
   resetProgress: () => {
     useGameStore.persist.clearStorage();
-    set({ completedLevels: {} });
+    set(freshAccount(get().profile));
     get().loadLevel(0);
   },
+
+  lastInteractionAt: Date.now(),
+  touchInteraction: () => set({ lastInteractionAt: Date.now() }),
+  markDiscovered: (fact) => set((state) => ({ discovered: { ...state.discovered, [fact]: true } })),
 }),
 {
   name: SAVE_KEY,
   storage: createJSONStorage(() => localStorage),
   version: 1,
   partialize: (state): PersistedState => ({
+    profile: state.profile,
+    run: state.run,
     levelIndex: state.level.index,
     currentNodeId: state.currentNodeId,
     discovered: state.discovered,
@@ -933,8 +1125,15 @@ export const useGameStore = create<GameState>()(
     const level = LEVELS[p.levelIndex] ?? LEVELS[0];
     const clues = p.clues ?? [];
     resumeClueCounter(clues);
+    const profile = mergeProfile(p.profile);
+    // The synth keeps its own copy of the audio settings, so a restored mute has to be pushed
+    // into it here — otherwise the first sound of the session plays at the default volume.
+    setAudioOutput(profile.audio);
+    const lang = p.lang ?? detectLang();
     return {
       ...(current as GameState),
+      profile,
+      run: { ...DEFAULT_RUN, ...p.run },
       level,
       currentNodeId: p.currentNodeId ?? level.entryNodeId,
       discovered: p.discovered ?? {},
@@ -946,11 +1145,11 @@ export const useGameStore = create<GameState>()(
       briefingActive: p.briefingActive ?? true,
       visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
       networkMapHintShown: p.networkMapHintShown ?? false,
-      lang: p.lang ?? "en",
+      lang,
       langChosen: p.langChosen ?? false,
       introActive: p.introActive ?? false,
       outroActive: p.outroActive ?? false,
-      terminalLines: briefingLines(level),
+      terminalLines: briefingLines(level, lang),
       terminalRevealCount: 0,
     };
   },

@@ -4,15 +4,17 @@ import { Sprite } from "./art/spriteEngine";
 import { playAmbientPulse, playGlitch } from "./audio/synth";
 import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { BriefingDialog } from "./components/BriefingDialog";
-import { LanguagePicker } from "./components/LanguagePicker";
+import { GestureCoach } from "./components/GestureCoach";
 import { LoginPicker } from "./components/LoginPicker";
 import { MonologueDialog } from "./components/MonologueDialog";
 import { NetworkMap } from "./components/NetworkMap";
 import { NetworkMapHint } from "./components/NetworkMapHint";
 import { RestartLevelDialog } from "./components/RestartLevelDialog";
+import { ShareButton } from "./components/ShareButton";
 import { StatusBar } from "./components/StatusBar";
 import { StoryScene } from "./components/StoryScene";
 import { TabBar } from "./components/TabBar";
+import { formatDuration, rankToneClass, type RunResult } from "./engine/runMetrics";
 import { TRACE_HOT_THRESHOLD, TRACE_TICK_INTERVAL_MS } from "./engine/traceSystem";
 import { UI } from "./i18n/ui";
 import { useT } from "./i18n/useT";
@@ -39,6 +41,7 @@ function TraceTicker() {
   const level = useGameStore((s) => s.level);
   const briefingActive = useGameStore((s) => s.briefingActive);
   const markLevelComplete = useGameStore((s) => s.markLevelComplete);
+  const notePeakTrace = useGameStore((s) => s.notePeakTrace);
   const levelComplete = useLevelComplete();
   const hotAlertedRef = useRef(false);
   const completedRef = useRef(false);
@@ -65,6 +68,13 @@ function TraceTicker() {
     }
   }, [traceLevel]);
 
+  // Reacts to traceLevel itself rather than wrapping tickTrace — catches every source of trace
+  // change (ticks, honeypot spikes, Delete Logs/Falsify/Hide reductions) automatically, without
+  // each of those store actions needing to know scoring exists.
+  useEffect(() => {
+    notePeakTrace(traceLevel);
+  }, [traceLevel, notePeakTrace]);
+
   useEffect(() => {
     if (levelComplete && !completedRef.current) {
       completedRef.current = true;
@@ -75,12 +85,58 @@ function TraceTicker() {
   return null;
 }
 
+/** Full graded breakdown, shown once a level is actually completed — see BurnedStats for the ungraded partial version shown on a failed run. */
+function RunResultCard({ result, isNewBest }: { result: RunResult; isNewBest: boolean }) {
+  const t = useT();
+  return (
+    <div className="flex w-full max-w-xs flex-col gap-2 rounded border border-border p-3 text-left text-[11px]">
+      <div className="flex items-center justify-between">
+        <span className={`text-base font-semibold tracking-widest ${rankToneClass(result.rank)}`}>
+          {result.rank}
+        </span>
+        {isNewBest && (
+          <span className="rounded border border-accent/40 px-1.5 py-0.5 text-[9px] tracking-wide text-accent">
+            {t(UI.resultNewBest)}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-text-dim">
+        <span>{t(UI.resultTrace)}</span>
+        <span className="text-right text-text">{result.peakTrace}%</span>
+        <span>{t(UI.resultIntel)}</span>
+        <span className="text-right text-text">
+          {result.cluesFound}/{result.cluesAvailable}
+        </span>
+        <span>{t(UI.resultTime)}</span>
+        <span className="text-right text-text">{formatDuration(result.elapsedMs)}</span>
+        {result.honeypotsTripped > 0 && (
+          <>
+            <span>{t(UI.resultHoneypots)}</span>
+            <span className="text-right text-warn">{result.honeypotsTripped}</span>
+          </>
+        )}
+        {result.failedLogins > 0 && (
+          <>
+            <span>{t(UI.resultFailedLogins)}</span>
+            <span className="text-right text-warn">{result.failedLogins}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BreachedScreen() {
   const t = useT();
   const level = useGameStore((s) => s.level);
   const loadLevel = useGameStore((s) => s.loadLevel);
   const setScreen = useGameStore((s) => s.setScreen);
+  const run = useGameStore((s) => s.run);
+  const bestRun = useGameStore((s) => s.profile.bestRuns[level.id]);
   const nextLevel = LEVELS[level.index + 1];
+  // bestRuns only ever points to this exact completion when it either just became the new best
+  // or was the level's first-ever completion — either way, worth calling out.
+  const isNewBest = run.result !== null && bestRun?.at === run.result.at;
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
@@ -89,6 +145,8 @@ function BreachedScreen() {
       <p className="text-xs text-text-dim">
         {nextLevel ? t(UI.nextTargetOnline) : t(UI.moreLevelsComing)}
       </p>
+      {run.result && <RunResultCard result={run.result} isNewBest={isNewBest} />}
+      {run.result && <ShareButton level={level} result={run.result} />}
       <div className="flex flex-wrap justify-center gap-2">
         <button
           type="button"
@@ -118,6 +176,28 @@ function BreachedScreen() {
   );
 }
 
+/** Ungraded partial stats on a failed run — no rank/score exists, since a burned run never reaches `computeRunResult`, but showing what was being tracked is exactly where a first-time player learns the scoring exists at all. */
+function BurnedStats() {
+  const t = useT();
+  const run = useGameStore((s) => s.run);
+  const cluesFound = useGameStore((s) => s.clues.length);
+  const elapsedMs = run.startedAt !== null && run.endedAt !== null ? run.endedAt - run.startedAt : 0;
+
+  return (
+    <div className="flex w-full max-w-xs flex-col gap-2 rounded border border-warn/40 p-3 text-left text-[11px]">
+      <span className="text-[10px] tracking-widest text-warn">{t(UI.resultSessionStats)}</span>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-text-dim">
+        <span>{t(UI.resultTrace)}</span>
+        <span className="text-right text-warn">{run.peakTrace}%</span>
+        <span>{t(UI.resultIntel)}</span>
+        <span className="text-right text-text">{cluesFound}</span>
+        <span>{t(UI.resultTime)}</span>
+        <span className="text-right text-text">{formatDuration(elapsedMs)}</span>
+      </div>
+    </div>
+  );
+}
+
 function BurnedScreen() {
   const t = useT();
   const level = useGameStore((s) => s.level);
@@ -134,6 +214,7 @@ function BurnedScreen() {
         {t(UI.connectionLost)}
       </p>
       <p className="text-xs text-text-dim">{t(UI.burnedBody)}</p>
+      <BurnedStats />
       <button
         type="button"
         onClick={() => loadLevel(level.index)}
@@ -152,6 +233,8 @@ function SettingsPanel() {
   const screen = useGameStore((s) => s.screen);
   const lang = useGameStore((s) => s.lang);
   const setLang = useGameStore((s) => s.setLang);
+  const audio = useGameStore((s) => s.profile.audio);
+  const setAudio = useGameStore((s) => s.setAudio);
   const openRestartConfirm = useGameStore((s) => s.openRestartConfirm);
   const [confirming, setConfirming] = useState(false);
   const inGame = screen === "game";
@@ -167,6 +250,35 @@ function SettingsPanel() {
       <h1 className="text-sm font-semibold tracking-widest text-text-bright">{t(UI.settingsTitle)}</h1>
       <p className="text-xs text-text-dim">{t(UI.reducedMotionNote)}</p>
       <p className="text-xs text-text-dim">{t(UI.autosaveNote)}</p>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-text-dim">{t(UI.audioLabel)}</p>
+          <button
+            type="button"
+            onClick={() => setAudio({ muted: !audio.muted })}
+            className={`min-h-[44px] rounded border px-4 text-xs font-medium tracking-wide ${
+              audio.muted
+                ? "border-warn/40 text-warn active:bg-warn-dim"
+                : "border-accent/40 text-accent active:bg-accent-dim"
+            }`}
+          >
+            {audio.muted ? t(UI.muteOn) : t(UI.muteOff)}
+          </button>
+        </div>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-text-dim">{t(UI.volumeLabel)}</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={audio.volume}
+            disabled={audio.muted}
+            onChange={(e) => setAudio({ volume: Number(e.target.value) })}
+            className="h-[44px] w-full accent-accent disabled:opacity-40"
+          />
+        </label>
+      </div>
       <div className="flex flex-col gap-2">
         <p className="text-xs text-text-dim">{t(UI.languageLabel)}</p>
         <div className="flex gap-2">
@@ -290,7 +402,7 @@ function useContextActions(): ContextAction[] {
       if (ready) {
         actions.push({
           id: "falsify-logs",
-          label: node.logFalsification.label,
+          label: t(node.logFalsification.label),
           onClick: falsifyLogs,
           danger: true,
         });
@@ -302,7 +414,7 @@ function useContextActions(): ContextAction[] {
       if (ready && !done) {
         actions.push({
           id: `compare-${compare.id}`,
-          label: compare.label,
+          label: t(compare.label),
           onClick: () => compareFiles(compare.id),
         });
       }
@@ -312,7 +424,7 @@ function useContextActions(): ContextAction[] {
       if (ready) {
         actions.push({
           id: `pivot-${pivot.id}`,
-          label: pivot.label,
+          label: t(pivot.label),
           onClick: () => pivotTo(pivot.id),
         });
       }
@@ -322,7 +434,7 @@ function useContextActions(): ContextAction[] {
       if (accessGranted && !done) {
         actions.push({
           id: `escalate-${esc.id}`,
-          label: esc.label,
+          label: t(esc.label),
           onClick: () => escalatePrivilege(esc.id),
         });
       }
@@ -332,7 +444,7 @@ function useContextActions(): ContextAction[] {
       if (accessGranted && !done) {
         actions.push({
           id: `backdoor-${bd.id}`,
-          label: bd.label,
+          label: t(bd.label),
           onClick: () => plantBackdoor(bd.id),
         });
       }
@@ -344,7 +456,7 @@ function useContextActions(): ContextAction[] {
     if (node.quickLogin) {
       const loginReady = node.quickLogin.requiredFacts.every((f) => discovered[f]);
       if (loginReady) {
-        actions.push({ id: "login", label: node.quickLogin.label, onClick: attemptQuickLogin });
+        actions.push({ id: "login", label: t(node.quickLogin.label), onClick: attemptQuickLogin });
       }
     } else if (!accessGranted) {
       const hasUsername = clues.some((c) => c.type === "username");
@@ -454,9 +566,13 @@ function ActivePanel() {
 function App() {
   const screen = useGameStore((s) => s.screen);
   const actions = useContextActions();
+  const touchInteraction = useGameStore((s) => s.touchInteraction);
 
   return (
-    <div className="mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden bg-bg text-text">
+    <div
+      onPointerDown={touchInteraction}
+      className="mx-auto flex h-dvh max-w-[430px] flex-col overflow-hidden bg-bg text-text"
+    >
       <div className="relative flex min-h-0 flex-1 flex-col">
         {screen === "menu" && <MainMenu />}
         {screen === "levels" && <LevelSelect />}
@@ -464,6 +580,7 @@ function App() {
         {screen === "game" && (
           <>
             <TraceTicker />
+            <GestureCoach />
             <StatusBar />
             <main className="min-h-0 flex-1 overflow-hidden">
               <ActivePanel />
@@ -480,7 +597,6 @@ function App() {
           </>
         )}
         <div className="scanlines" />
-        <LanguagePicker />
       </div>
     </div>
   );

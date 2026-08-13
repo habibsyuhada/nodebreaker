@@ -14,8 +14,13 @@ export const UI = {
     en: "FIND THE OPENING. GET IN. STAY QUIET.",
     id: "CARI CELAHNYA. MASUK. DIAM-DIAM.",
   },
+  startBtn: { en: "START", id: "MULAI" },
   continueBtn: { en: "Continue", id: "Lanjutkan" },
   selectLevel: { en: "Select Level", id: "Pilih Level" },
+  installApp: { en: "Install App", id: "Instal Aplikasi" },
+  switchToIndonesian: { en: "Bahasa Indonesia?", id: "Bahasa Indonesia?" },
+  switchToEnglish: { en: "English?", id: "English?" },
+  switchLangDismiss: { en: "×", id: "×" },
   settings: { en: "Settings", id: "Pengaturan" },
   exit: { en: "Exit", id: "Keluar" },
   connectionTerminated: { en: "CONNECTION TERMINATED", id: "KONEKSI DIPUTUS" },
@@ -38,13 +43,17 @@ export const UI = {
   // SettingsPanel
   settingsTitle: { en: "SETTINGS", id: "PENGATURAN" },
   reducedMotionNote: {
-    en: "Reduced motion is auto-detected from your system, and sound respects it too.",
-    id: "Gerakan berkurang terdeteksi otomatis dari sistem kamu, suara juga menyesuaikan.",
+    en: "Reduced motion is auto-detected from your system.",
+    id: "Gerakan berkurang terdeteksi otomatis dari sistem kamu.",
   },
   autosaveNote: {
     en: "Your level, clues, and trace save automatically to this device — closing the tab won't lose your place.",
     id: "Level, petunjuk, dan trace kamu otomatis tersimpan di perangkat ini — menutup tab gak akan menghilangkan progres.",
   },
+  audioLabel: { en: "Sound", id: "Suara" },
+  muteOn: { en: "Muted", id: "Senyap" },
+  muteOff: { en: "On", id: "Aktif" },
+  volumeLabel: { en: "Volume", id: "Volume" },
   languageLabel: { en: "Language", id: "Bahasa" },
   resetProgress: { en: "Reset Progress", id: "Reset Progres" },
   resetConfirm: {
@@ -79,6 +88,25 @@ export const UI = {
   replayLevel: { en: "Replay Level", id: "Ulangi Level" },
   nextLevel: { en: "Next Level", id: "Level Berikutnya" },
   mainMenu: { en: "Main Menu", id: "Menu Utama" },
+
+  // Run result breakdown — shared between BreachedScreen (full, graded) and BurnedScreen
+  // (partial, ungraded — a burned run never gets a rank). Rank words themselves (GHOST/CLEAN/
+  // LOUD/SLOPPY) stay literal, same convention as ACCESS GRANTED and LEVEL X COMPLETE elsewhere.
+  resultNewBest: { en: "NEW BEST", id: "REKOR BARU" },
+  resultTrace: { en: "PEAK TRACE", id: "TRACE PUNCAK" },
+  resultIntel: { en: "INTEL", id: "INTEL" },
+  resultTime: { en: "TIME", id: "WAKTU" },
+  resultHoneypots: { en: "HONEYPOTS HIT", id: "HONEYPOT KENA" },
+  resultFailedLogins: { en: "FAILED LOGINS", id: "LOGIN GAGAL" },
+  resultSessionStats: { en: "SESSION STATS", id: "STATISTIK SESI" },
+
+  // ShareButton
+  shareResult: { en: "Share Result", id: "Bagikan Hasil" },
+  shareCopied: { en: "Copied!", id: "Tersalin!" },
+  shareManualHint: {
+    en: "Couldn't share directly — copy the text above.",
+    id: "Gak bisa dibagikan langsung — salin teks di atas.",
+  },
 
   // BurnedScreen
   connectionLost: { en: "CONNECTION LOST — NODE BURNED", id: "KONEKSI TERPUTUS — NODE TERBAKAR" },
@@ -188,6 +216,23 @@ export const UI = {
   gatedActionBlockedMonologue: {
     en: "Not yet — {label} still needs:",
     id: "Belum bisa — {label} masih butuh:",
+  },
+  /** Fallback when a gated action's level data doesn't supply its own requiredFactHints entry. */
+  stillMissingFact: { en: "still missing: {fact}", id: "masih kurang: {fact}" },
+
+  // GestureCoach — idle-triggered hints, delivered through the same monologue channel as the
+  // lines above so they read as the player's own thought rather than a tutorial popup.
+  hintTapHoldInspect: {
+    en: "Might be worth holding my finger on one of these before opening it.",
+    id: "Ada baiknya saya tahan jari di salah satu ini dulu sebelum membukanya.",
+  },
+  hintSaveClue: {
+    en: "Anything useful in here is worth holding my finger on — keeps it in my notes.",
+    id: "Apa pun yang berguna di sini layak saya tahan jarinya — biar tersimpan di catatan.",
+  },
+  hintOpenWorkbench: {
+    en: "A couple of these clues might fit together. Worth trying them on the Workbench.",
+    id: "Beberapa petunjuk ini mungkin bisa digabung. Coba di Workbench.",
   },
 
   // RestartLevelDialog
