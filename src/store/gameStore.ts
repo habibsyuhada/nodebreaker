@@ -16,6 +16,7 @@ import {
   traceLogFactId,
 } from "../engine/traceSystem";
 import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
+import { applyTheme, BASE_THEME_ID, getThemeById } from "../engine/theme";
 import { detectLang, format, t as translate } from "../i18n";
 import type { Lang, LocalizedText } from "../i18n";
 import { UI } from "../i18n/ui";
@@ -24,7 +25,7 @@ import type { LevelDef, LevelNodeDef } from "../levels/types";
 
 export type PanelId = "terminal" | "files" | "clues" | "settings";
 
-export type ScreenId = "menu" | "levels" | "game" | "settings" | "records";
+export type ScreenId = "menu" | "levels" | "game" | "settings" | "records" | "themes";
 
 /**
  * Which of the two ways `state.level` was resolved — the static `LEVELS` array by index, or a
@@ -86,6 +87,12 @@ export interface ProfileState {
   audio: AudioSettings;
   /** Level ids where a persistent foothold was planted — read by later levels that gate on one. */
   footholds: Record<string, true>;
+  /** Theme.id (src/engine/theme.ts) currently applied. */
+  activeThemeId: string;
+  /** Every Theme.id ever unlocked — always includes the base theme. */
+  unlockedThemeIds: Record<string, true>;
+  /** `${levelId}:${pathId}` for every boss win-path ever cleared — idempotency guard for reward grants, also the basis for "how many distinct paths cleared on this level". */
+  bossPathsCleared: Record<string, true>;
 }
 
 /**
@@ -109,6 +116,9 @@ const DEFAULT_PROFILE: ProfileState = {
   daily: { lastCompletedSeed: null, streak: 0, longest: 0 },
   audio: { muted: false, volume: 0.8 },
   footholds: {},
+  activeThemeId: BASE_THEME_ID,
+  unlockedThemeIds: { [BASE_THEME_ID]: true },
+  bossPathsCleared: {},
 };
 
 const DEFAULT_RUN: RunState = {
@@ -163,6 +173,9 @@ function computeLevelComplete(
   discovered: Record<string, true>,
 ): boolean {
   if (Object.keys(accessGrantedNodes).length === 0) return false;
+  if (level.winPaths && level.winPaths.length > 0) {
+    return level.winPaths.some((p) => p.requiredFacts.every((f) => discovered[f]));
+  }
   const required = level.completionRequires ?? [];
   return required.every((f) => discovered[f]);
 }
@@ -399,6 +412,15 @@ interface GameState {
    * also read, but that isn't itself a counter bump).
    */
   checkAchievements: () => void;
+
+  /** Switches the active theme (no-op if `themeId` isn't unlocked) and applies it to the DOM immediately. */
+  setActiveTheme: (themeId: string) => void;
+  /**
+   * For a boss level (`level.winPaths` set): grants the theme(s) in `level.bossRewardThemes` the
+   * moment the 2nd and 3rd DISTINCT win path (by id, regardless of order) are ever cleared on this
+   * level — the first path cleared grants no theme, only progression. Called from `markLevelComplete`.
+   */
+  checkBossPathRewards: () => void;
 }
 
 function briefingLines(level: LevelDef, lang: Lang): TerminalLine[] {
@@ -535,6 +557,20 @@ export const useGameStore = create<GameState>()(
       };
     });
     get().checkAchievements();
+    get().checkBossPathRewards();
+    const rewardThemeId = LEVELS.find((l) => l.id === levelId)?.completionRewardThemeId;
+    if (rewardThemeId && !get().profile.unlockedThemeIds[rewardThemeId]) {
+      set((state) => ({
+        profile: {
+          ...state.profile,
+          unlockedThemeIds: { ...state.profile.unlockedThemeIds, [rewardThemeId]: true },
+        },
+      }));
+      const { lang } = get();
+      get().pushMonologue([
+        format(translate(UI.themeUnlockedMonologue, lang), { name: translate(getThemeById(rewardThemeId).name, lang) }),
+      ]);
+    }
   },
 
   briefingActive: true,
@@ -1158,6 +1194,7 @@ export const useGameStore = create<GameState>()(
   resetProgress: () => {
     useGameStore.persist.clearStorage();
     set(freshAccount(get().profile));
+    applyTheme(getThemeById(BASE_THEME_ID));
     get().loadLevel(0);
   },
 
@@ -1189,11 +1226,64 @@ export const useGameStore = create<GameState>()(
           ...state.profile.achievements,
           ...Object.fromEntries(earned.map((a) => [a.id, now])),
         },
+        unlockedThemeIds: {
+          ...state.profile.unlockedThemeIds,
+          ...Object.fromEntries(
+            earned.filter((a) => a.rewardThemeId).map((a) => [a.rewardThemeId as string, true as const]),
+          ),
+        },
       },
     }));
     for (const a of earned) {
       get().pushMonologue([
         format(translate(UI.achievementUnlockedMonologue, lang), { name: translate(a.name, lang) }),
+      ]);
+      if (a.rewardThemeId) {
+        get().pushMonologue([
+          format(translate(UI.themeUnlockedMonologue, lang), { name: translate(getThemeById(a.rewardThemeId).name, lang) }),
+        ]);
+      }
+    }
+  },
+
+  setActiveTheme: (themeId) => {
+    const { profile } = get();
+    if (!profile.unlockedThemeIds[themeId]) return;
+    applyTheme(getThemeById(themeId));
+    set((state) => ({ profile: { ...state.profile, activeThemeId: themeId } }));
+  },
+
+  checkBossPathRewards: () => {
+    const { level, discovered, profile, lang } = get();
+    const paths = level.winPaths ?? [];
+    if (paths.length === 0 || !level.bossRewardThemes) return;
+    const clearedBefore = new Set(
+      paths.filter((p) => profile.bossPathsCleared[`${level.id}:${p.id}`]).map((p) => p.id),
+    );
+    const newlyCleared = paths.filter(
+      (p) => !clearedBefore.has(p.id) && p.requiredFacts.every((f) => discovered[f]),
+    );
+    if (newlyCleared.length === 0) return;
+    const clearedAfter = new Set([...clearedBefore, ...newlyCleared.map((p) => p.id)]);
+    const themeIds: string[] = [];
+    if (clearedBefore.size < 2 && clearedAfter.size >= 2) themeIds.push(level.bossRewardThemes.second);
+    if (clearedBefore.size < 3 && clearedAfter.size >= 3) themeIds.push(level.bossRewardThemes.third);
+    set((state) => ({
+      profile: {
+        ...state.profile,
+        bossPathsCleared: {
+          ...state.profile.bossPathsCleared,
+          ...Object.fromEntries(newlyCleared.map((p) => [`${level.id}:${p.id}`, true as const])),
+        },
+        unlockedThemeIds: {
+          ...state.profile.unlockedThemeIds,
+          ...Object.fromEntries(themeIds.map((id) => [id, true as const])),
+        },
+      },
+    }));
+    for (const themeId of themeIds) {
+      get().pushMonologue([
+        format(translate(UI.themeUnlockedMonologue, lang), { name: translate(getThemeById(themeId).name, lang) }),
       ]);
     }
   },
@@ -1235,6 +1325,9 @@ export const useGameStore = create<GameState>()(
     // The synth keeps its own copy of the audio settings, so a restored mute has to be pushed
     // into it here — otherwise the first sound of the session plays at the default volume.
     setAudioOutput(profile.audio);
+    // Same idea for the theme: the DOM's CSS custom properties aren't part of React state, so a
+    // restored non-default theme has to be pushed here too, before first paint.
+    applyTheme(getThemeById(profile.activeThemeId));
     const lang = p.lang ?? detectLang();
     return {
       ...(current as GameState),

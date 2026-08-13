@@ -261,4 +261,15 @@ export const UI = {
     en: "Today's contract is done. Come back after 00:00 UTC.",
     id: "Kontrak hari ini sudah selesai. Kembali setelah 00:00 UTC.",
   },
+
+  // ThemeGallery — unlockable skins, entry point in SettingsPanel's "Appearance" section
+  appearanceLabel: { en: "Appearance", id: "Tampilan" },
+  openThemesBtn: { en: "Themes", id: "Tema" },
+  backToSettingsLabel: { en: "‹ Settings", id: "‹ Pengaturan" },
+  themeGalleryTitle: { en: "THEMES", id: "TEMA" },
+  themeActiveLabel: { en: "ACTIVE", id: "AKTIF" },
+  themeUnlockedMonologue: {
+    en: "Theme unlocked: {name}",
+    id: "Tema terbuka: {name}",
+  },
 } satisfies Record<string, LocalizedText>;

@@ -20,6 +20,8 @@ export interface AchievementDef {
   name: LocalizedText;
   description: LocalizedText;
   isEarned: (ctx: AchievementContext) => boolean;
+  /** Theme.id (src/engine/theme.ts) unlocked the first time this achievement is earned. */
+  rewardThemeId?: string;
 }
 
 function counter(ctx: AchievementContext, key: string): number {
@@ -56,6 +58,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     name: { en: "Ghost Protocol", id: "Protokol Hantu" },
     description: { en: "Earn a GHOST rank on any level.", id: "Raih rank GHOST di level mana pun." },
     isEarned: (ctx) => ranksOf(ctx).includes("GHOST"),
+    rewardThemeId: "ch1-analyst",
   },
   {
     id: "ghost-sweep",
@@ -65,6 +68,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
       id: "Raih rank GHOST di semua level kampanye.",
     },
     isEarned: (ctx) => LEVELS.every((l) => ctx.bestRuns[l.id]?.rank === "GHOST"),
+    rewardThemeId: "ch4-analyst",
   },
   {
     id: "speedrunner",
@@ -78,6 +82,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
         const best = ctx.bestRuns[l.id];
         return best !== undefined && best.elapsedMs / 1000 < (l.parSeconds ?? 240);
       }),
+    rewardThemeId: "ch3-analyst",
   },
   {
     id: "untouchable",
@@ -195,6 +200,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     name: { en: "One Week In", id: "Satu Minggu Berjalan" },
     description: { en: "Reach a 7-day Daily Contract streak.", id: "Raih rentetan Kontrak Harian 7 hari." },
     isEarned: (ctx) => ctx.daily.longest >= 7,
+    rewardThemeId: "ch2-analyst",
   },
   {
     id: "dedicated",

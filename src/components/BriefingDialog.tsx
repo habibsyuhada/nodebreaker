@@ -1,5 +1,6 @@
-import { BASE_PALETTE, LOCK_SPRITE } from "../art/sprites";
+import { LOCK_SPRITE } from "../art/sprites";
 import { Sprite } from "../art/spriteEngine";
+import { useSpritePalette } from "../art/themePalette";
 import { UI } from "../i18n/ui";
 import { useT } from "../i18n/useT";
 import { useGameStore } from "../store/gameStore";
@@ -14,6 +15,7 @@ export function BriefingDialog() {
   const briefingActive = useGameStore((s) => s.briefingActive);
   const level = useGameStore((s) => s.level);
   const dismissBriefing = useGameStore((s) => s.dismissBriefing);
+  const palette = useSpritePalette();
 
   if (!briefingActive) return null;
 
@@ -21,7 +23,7 @@ export function BriefingDialog() {
 
   return (
     <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-bg p-6 text-center">
-      <Sprite grid={LOCK_SPRITE} palette={BASE_PALETTE} size={48} title="target node" />
+      <Sprite grid={LOCK_SPRITE} palette={palette} size={48} title="target node" />
       <p className="text-[10px] tracking-widest text-text-dim">{t(UI.incomingJob)}</p>
       <h1 className="text-sm font-semibold tracking-widest text-accent">{t(level.title)}</h1>
       {entryNode && (

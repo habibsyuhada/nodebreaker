@@ -16,6 +16,11 @@ const DECODE_RECIPES: Record<string, CombineResult> = {
     value: atob("UmVjMHZlcnlTbGlwIzQ="),
     label: "Decoded from a base64 comment left in the sync script",
   },
+  "TjFtYnVzI1ZlbmQwcg==": {
+    type: "pattern",
+    value: atob("TjFtYnVzI1ZlbmQwcg=="),
+    label: "Decoded rotation pattern from the vendor onboarding notes",
+  },
 };
 
 /** Keyed by the exact hash clue value — simulates a cracker matching against a known wordlist. */
@@ -24,6 +29,11 @@ const CRACK_RECIPES: Record<string, CombineResult> = {
     type: "password",
     value: "Aut0Deploy#9",
     label: "Cracked from the rotated password hash",
+  },
+  "5f8a0c2e91b6d4317aa4e2c9f0b1d6a3": {
+    type: "token",
+    value: "AURELIA-LINK-4471",
+    label: "Cracked ledger checksum — reveals an internal routing token",
   },
 };
 

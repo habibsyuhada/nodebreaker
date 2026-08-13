@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { ALERT_SPRITE, BASE_PALETTE, MEGAPHONE_SPRITE, PERSON_SPRITE, SUIT_SPRITE } from "../art/sprites";
+import { ALERT_SPRITE, MEGAPHONE_SPRITE, PERSON_SPRITE, SUIT_SPRITE } from "../art/sprites";
 import { Sprite } from "../art/spriteEngine";
 import type { SpriteGrid } from "../art/spriteEngine";
+import { useSpritePalette } from "../art/themePalette";
 import { playCombineSuccess, playGlitch, playTypeTick } from "../audio/synth";
 import { t } from "../i18n";
 import { UI } from "../i18n/ui";
@@ -65,6 +66,7 @@ export function StoryScene() {
   const discovered = useGameStore((s) => s.discovered);
   const dismissIntro = useGameStore((s) => s.dismissIntro);
   const dismissOutro = useGameStore((s) => s.dismissOutro);
+  const palette = useSpritePalette();
 
   const tone: "intro" | "outro" | null = introActive ? "intro" : outroActive ? "outro" : null;
   const scene = tone === "intro" ? level.intro : tone === "outro" ? level.outro : undefined;
@@ -152,7 +154,7 @@ export function StoryScene() {
               className={`card-in flex flex-col gap-2 rounded border p-3 ${KIND_CARD_CLASS[card.kind]}`}
             >
               <div className="flex items-center gap-2">
-                <Sprite grid={KIND_SPRITE[card.kind]} palette={BASE_PALETTE} size={24} />
+                <Sprite grid={KIND_SPRITE[card.kind]} palette={palette} size={24} />
                 <div className="min-w-0 flex-1">
                   <p className={`truncate text-xs font-semibold ${KIND_AUTHOR_CLASS[card.kind]}`}>
                     {t(card.author, lang)}

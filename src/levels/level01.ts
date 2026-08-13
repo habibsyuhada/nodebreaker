@@ -24,6 +24,7 @@ export const LEVEL_01: LevelDef = {
   // First-pass estimate (structural, not playtested) — see LevelDef.parSeconds's doc comment.
   parSeconds: 90,
   coldOpen: true,
+  completionRewardThemeId: "daylight-terminal",
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
     closer: { en: "Someone should even the line.", id: "Saatnya menyamakan jalur." },
