@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { setAudioOutput } from "../audio/synth";
+import { newlyEarned } from "../engine/achievements";
 import { addClue, resumeClueCounter } from "../engine/clueSystem";
 import type { Clue, ClueInput } from "../engine/clueSystem";
 import { tryCombine } from "../engine/combineRules";
@@ -22,7 +23,7 @@ import type { LevelDef, LevelNodeDef } from "../levels/types";
 
 export type PanelId = "terminal" | "files" | "clues" | "settings";
 
-export type ScreenId = "menu" | "levels" | "game" | "settings";
+export type ScreenId = "menu" | "levels" | "game" | "settings" | "records";
 
 export type TerminalTone = "input" | "output" | "success" | "warn" | "system";
 
@@ -366,6 +367,21 @@ interface GameState {
   touchInteraction: () => void;
   /** Generic one-off fact setter — used by GestureCoach so its once-per-level hint guards don't need a bespoke store action each. */
   markDiscovered: (fact: string) => void;
+
+  /**
+   * Single entry point for every lifetime tally that an achievement condition might read
+   * (`profile.counters`) — every store action that should move an achievement forward calls this
+   * instead of writing to `profile.counters` directly, so `checkAchievements` only has to be
+   * called from one place per bump rather than duplicated at every call site.
+   */
+  bumpCounter: (key: string, amount?: number) => void;
+  /**
+   * Re-evaluates every `AchievementDef` against the current profile and unlocks any that just
+   * became true, pushing one monologue entry per newly-earned achievement. Called by
+   * `bumpCounter` and by `markLevelComplete` (whose completion/rank/streak state achievements
+   * also read, but that isn't itself a counter bump).
+   */
+  checkAchievements: () => void;
 }
 
 function briefingLines(level: LevelDef, lang: Lang): TerminalLine[] {
@@ -423,7 +439,7 @@ export const useGameStore = create<GameState>()(
   },
 
   completedLevels: {},
-  markLevelComplete: (levelId) =>
+  markLevelComplete: (levelId) => {
     set((state) => {
       if (state.level.id !== levelId) {
         // Defensive — the single call site always passes the current level's own id, but a
@@ -452,7 +468,9 @@ export const useGameStore = create<GameState>()(
         run: { ...state.run, endedAt, result },
         profile: { ...state.profile, bestRuns },
       };
-    }),
+    });
+    get().checkAchievements();
+  },
 
   briefingActive: true,
   dismissBriefing: () =>
@@ -494,7 +512,10 @@ export const useGameStore = create<GameState>()(
   currentNodeId: LEVELS[0].entryNodeId,
   visitedNodeIds: { [LEVELS[0].entryNodeId]: true },
   networkMapOpen: false,
-  setNetworkMapOpen: (open) => set({ networkMapOpen: open, networkMapHintShown: open || get().networkMapHintShown }),
+  setNetworkMapOpen: (open) => {
+    set({ networkMapOpen: open, networkMapHintShown: open || get().networkMapHintShown });
+    if (open) get().bumpCounter("networkMapOpens");
+  },
   networkMapHintShown: false,
   dismissNetworkMapHint: () => set({ networkMapHintShown: true }),
   currentPath: [],
@@ -519,29 +540,29 @@ export const useGameStore = create<GameState>()(
   transformFeedback: null,
 
   goToPath: (path) => {
-    const { level, currentNodeId, discovered, lang } = get();
+    const { level, currentNodeId, discovered, traceLevel, burned, lang } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const entry = node ? findEntry(node.root, path) : undefined;
     const honeypot = entry?.kind === "dir" ? entry.honeypot : undefined;
 
     if (honeypot && !discovered[honeypot.triggeredFact]) {
       const lines = honeypot.warningText.map((t) => makeLine(translate(t, lang), "warn"));
-      set((state) => {
-        const next = clampTrace(state.traceLevel + honeypot.tracePenalty);
-        const burnedNow = next >= TRACE_MAX;
-        return {
-          currentPath: path,
-          openFilePath: null,
-          inspectingPath: null,
-          discovered: { ...state.discovered, [honeypot.triggeredFact]: true },
-          traceLevel: next,
-          burned: burnedNow,
-          // Unlike tickTrace, this path has no top-level "already burned" guard (a burned game
-          // blocks navigation via the UI, not the store), so the state.burned check here matters.
-          run: burnedNow && !state.burned ? { ...state.run, endedAt: Date.now() } : state.run,
-          terminalLines: [...state.terminalLines, ...lines],
-        };
-      });
+      const next = clampTrace(traceLevel + honeypot.tracePenalty);
+      const burnedNow = next >= TRACE_MAX;
+      set((state) => ({
+        currentPath: path,
+        openFilePath: null,
+        inspectingPath: null,
+        discovered: { ...state.discovered, [honeypot.triggeredFact]: true },
+        traceLevel: next,
+        burned: burnedNow,
+        // Unlike tickTrace, this path has no top-level "already burned" guard (a burned game
+        // blocks navigation via the UI, not the store), so the state.burned check here matters.
+        run: burnedNow && !state.burned ? { ...state.run, endedAt: Date.now() } : state.run,
+        terminalLines: [...state.terminalLines, ...lines],
+      }));
+      get().bumpCounter("honeypotsTotal");
+      if (burnedNow && !burned) get().bumpCounter("burns");
       return;
     }
 
@@ -594,6 +615,7 @@ export const useGameStore = create<GameState>()(
       terminalLines: [...state.terminalLines, ...lines],
       discovered: { ...state.discovered, scanned: true },
     }));
+    get().bumpCounter("scans");
   },
 
   listUsers: () => {
@@ -636,6 +658,7 @@ export const useGameStore = create<GameState>()(
       discovered: { ...state.discovered, "logs-deleted": true },
       traceLevel: clampTrace(state.traceLevel - 15),
     }));
+    get().bumpCounter("logsCleared");
   },
 
   falsifyLogs: () => {
@@ -653,6 +676,7 @@ export const useGameStore = create<GameState>()(
       discovered: { ...state.discovered, "logs-falsified": true },
       traceLevel: clampTrace(state.traceLevel - reduction),
     }));
+    get().bumpCounter("logsCleared");
   },
 
   compareFiles: (compareId) => {
@@ -715,6 +739,7 @@ export const useGameStore = create<GameState>()(
       searchKeyword: null,
       terminalLines: [...state.terminalLines, ...lines],
     }));
+    get().bumpCounter("pivots");
   },
 
   escalatePrivilege: (escalationId) => {
@@ -733,6 +758,7 @@ export const useGameStore = create<GameState>()(
       terminalLines: [...state.terminalLines, ...lines],
       discovered: { ...state.discovered, [escalation.grantsFact]: true },
     }));
+    get().bumpCounter("escalations");
   },
 
   plantBackdoor: (backdoorId) => {
@@ -751,6 +777,7 @@ export const useGameStore = create<GameState>()(
       terminalLines: [...state.terminalLines, ...lines],
       discovered: { ...state.discovered, [backdoor.grantsFact]: true },
     }));
+    get().bumpCounter("backdoorsPlanted");
   },
 
   checkConnections: () => {
@@ -780,6 +807,7 @@ export const useGameStore = create<GameState>()(
       terminalLines: [...state.terminalLines, ...lines],
       traceLevel: clampTrace(state.traceLevel - 20),
     }));
+    get().bumpCounter("wentQuiet");
   },
 
   tickTrace: () => {
@@ -812,6 +840,7 @@ export const useGameStore = create<GameState>()(
       // exact tick that first crosses 100%, so no extra "already burned" check is needed here.
       run: burnedNow ? { ...state.run, endedAt: Date.now() } : state.run,
     }));
+    if (burnedNow) get().bumpCounter("burns");
   },
 
   notePeakTrace: (value) =>
@@ -842,6 +871,7 @@ export const useGameStore = create<GameState>()(
         ? { ...state.accessGrantedNodes, [currentNodeId]: true }
         : state.accessGrantedNodes,
     }));
+    if (!success) get().bumpCounter("failedLogins");
   },
 
   loginPickerOpen: false,
@@ -897,6 +927,7 @@ export const useGameStore = create<GameState>()(
       loginUsernameClueId: null,
       loginPasswordClueId: null,
     }));
+    if (!success) get().bumpCounter("failedLogins");
   },
 
   loadLevel: (index) => {
@@ -949,6 +980,7 @@ export const useGameStore = create<GameState>()(
     if (result.added) {
       set({ clues: result.clues });
       get().pushMonologue([format(translate(UI.clueSavedMonologue, lang), { label: input.label })]);
+      get().bumpCounter("cluesSaved");
     }
     return result.added;
   },
@@ -982,6 +1014,7 @@ export const useGameStore = create<GameState>()(
         slotB: null,
         combineFeedback: { kind: "success", message: `${result.value} — ${result.label}` },
       });
+      get().bumpCounter("combines");
     } else {
       set({
         slotA: null,
@@ -1012,6 +1045,7 @@ export const useGameStore = create<GameState>()(
         selectedClueId: null,
         transformFeedback: { kind: "success", message: `${result.value} — ${result.label}` },
       });
+      get().bumpCounter("decodes");
     } else {
       set({
         selectedClueId: null,
@@ -1036,6 +1070,7 @@ export const useGameStore = create<GameState>()(
         selectedClueId: null,
         transformFeedback: { kind: "success", message: `${result.value} — ${result.label}` },
       });
+      get().bumpCounter("leakHits");
     } else {
       set({
         selectedClueId: null,
@@ -1075,6 +1110,7 @@ export const useGameStore = create<GameState>()(
           selectedClueId: null,
           terminalLines: [...state.terminalLines, makeLine(`Password recovered: ${result.value}`, "success")],
         }));
+        get().bumpCounter("hashesCracked");
       } else {
         set((state) => ({
           crackingClueId: null,
@@ -1095,6 +1131,39 @@ export const useGameStore = create<GameState>()(
   lastInteractionAt: Date.now(),
   touchInteraction: () => set({ lastInteractionAt: Date.now() }),
   markDiscovered: (fact) => set((state) => ({ discovered: { ...state.discovered, [fact]: true } })),
+
+  bumpCounter: (key, amount = 1) => {
+    set((state) => ({
+      profile: {
+        ...state.profile,
+        counters: { ...state.profile.counters, [key]: (state.profile.counters[key] ?? 0) + amount },
+      },
+    }));
+    get().checkAchievements();
+  },
+  checkAchievements: () => {
+    const { profile, completedLevels, lang } = get();
+    const earned = newlyEarned(
+      { counters: profile.counters, completedLevels, bestRuns: profile.bestRuns, daily: profile.daily },
+      profile.achievements,
+    );
+    if (earned.length === 0) return;
+    const now = Date.now();
+    set((state) => ({
+      profile: {
+        ...state.profile,
+        achievements: {
+          ...state.profile.achievements,
+          ...Object.fromEntries(earned.map((a) => [a.id, now])),
+        },
+      },
+    }));
+    for (const a of earned) {
+      get().pushMonologue([
+        format(translate(UI.achievementUnlockedMonologue, lang), { name: translate(a.name, lang) }),
+      ]);
+    }
+  },
 }),
 {
   name: SAVE_KEY,

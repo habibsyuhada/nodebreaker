@@ -25,6 +25,7 @@ import { Terminal } from "./panels/Terminal";
 import { Workbench } from "./panels/Workbench";
 import { LevelSelect } from "./screens/LevelSelect";
 import { MainMenu } from "./screens/MainMenu";
+import { OpsRecord } from "./screens/OpsRecord";
 import {
   type PanelId,
   useCurrentNode,
@@ -576,6 +577,7 @@ function App() {
       <div className="relative flex min-h-0 flex-1 flex-col">
         {screen === "menu" && <MainMenu />}
         {screen === "levels" && <LevelSelect />}
+        {screen === "records" && <OpsRecord />}
         {screen === "settings" && <SettingsPanel />}
         {screen === "game" && (
           <>

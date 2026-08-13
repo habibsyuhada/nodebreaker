@@ -154,6 +154,13 @@ export function MainMenu() {
         </button>
         <button
           type="button"
+          onClick={() => setScreen("records")}
+          className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
+        >
+          {t(UI.opsRecord)}
+        </button>
+        <button
+          type="button"
           onClick={() => setScreen("settings")}
           className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
         >

@@ -1108,19 +1108,74 @@ render correctly in Indonesian on top of the newly-translated content —
 this is the first time content translated in this stage was exercised by
 an actual solve, not just the validator's structural checks.
 
+### Stage 21 mechanics added — achievements & Ops Record
+
+**Problem:** `ProfileState` already had `counters`, `achievements`, and
+`daily` fields reserved since the persistence refactor, but nothing wrote
+to or read them — no achievement list, no unlock detection, no screen to
+see them on.
+
+**What shipped:**
+
+- `src/engine/achievements.ts` — 24 `AchievementDef`s (campaign progression,
+  run-quality ranks, tradecraft repetition, risk-gone-wrong, Daily
+  Contract) plus `newlyEarned(ctx, unlocked)`, a pure function over a
+  narrow `AchievementContext` (`counters`/`completedLevels`/`bestRuns`/
+  `daily`) deliberately **not** typed against `ProfileState` — `gameStore.ts`
+  already needs to import from this file, so a reverse import would be
+  circular. `AchievementContext` is the seam that avoids it.
+- `bumpCounter(key, amount?)` on the store — the single place that writes
+  to `profile.counters` and then calls `checkAchievements()`. Wired into
+  every action an achievement condition reads: `scans`, `hashesCracked`,
+  `decodes`, `leakHits`, `combines`, `cluesSaved`, `logsCleared`,
+  `wentQuiet`, `networkMapOpens`, `pivots`, `escalations`,
+  `backdoorsPlanted`, `burns`, `failedLogins` (both `confirmLogin` and
+  `attemptQuickLogin`'s failure paths — only `confirmLogin` had ever fed
+  the per-run `run.failedLogins` used for scoring; this lifetime counter is
+  intentionally a separate concern), and `honeypotsTotal`. `tickTrace` and
+  `goToPath`'s honeypot branch both needed their burn-detection restructured
+  slightly (hoisting `burnedNow`/the pre-tick `burned` value out of the
+  `set()` callback) so `bumpCounter("burns")` fires exactly once, outside
+  the updater, on the tick that actually crosses 100%.
+- `checkAchievements()` re-evaluates every `AchievementDef` against the
+  current profile, unlocks any newly-true ones (stamping
+  `profile.achievements[id] = Date.now()`), and pushes one
+  `achievementUnlockedMonologue` entry per unlock through the existing
+  `pushMonologue` channel (Stage 17's player-monologue dialog) rather than
+  a new toast/notification component. Also called from `markLevelComplete`
+  after `bestRuns`/`completedLevels` update, since several achievements
+  (GHOST sweep, campaign complete, untouchable) only become true there, not
+  from a counter bump.
+- `src/screens/OpsRecord.tsx` — new screen off the Main Menu
+  (`UI.opsRecord` button, `screen: "records"`), listing every achievement
+  (name + description always visible, locked ones dimmed with a `LOCKED`
+  tag reusing `UI.locked`) plus an unlocked-count summary and the Daily
+  Contract streak (reads `profile.daily`, populated once Stage 22 lands —
+  shows 0/0 until then, not an error).
+- 8 new bilingual `UI` strings (`opsRecord`, `opsRecordTitle`,
+  `opsRecordProgress`, `achievementUnlockedMonologue`, `dailyStreakLabel`,
+  `dailyStreakBest`, plus two Stage 22 strings added in the same pass since
+  they're one contiguous i18n edit — see below).
+
+**Verified:** `npx tsc -b --noEmit`, `npm run lint`, `npm run build`, and
+`npm run validate-i18n` all clean. A Playwright pass confirmed the fresh-
+profile Ops Record screen renders all 24 achievements locked with a
+`0 / 24 unlocked` progress line and no console errors, then a real Level 1
+playthrough (Files → read `notes.txt` → Terminal → factory-default quick
+login) confirmed the "Achievement unlocked" monologue text actually
+appears at the moment `first-breach` becomes true, not just that the
+achievement list renders.
+
 ## What's next
 
-All 10 stages from the original build order, plus Stages 16–20 above, are
-done — the game is feature-complete and the v1.0 round now has a cold
-start, run scoring and grading, a shareable result card, and Levels 1–3
-translated into Bahasa Indonesia. Reasonable next moves if resuming work on
-this project (see the in-repo plan this session worked from for the full
-staged breakdown: achievements, daily contracts, the rest of content i18n,
-and a second chapter of levels, roughly in that order):
+All 10 stages from the original build order, plus Stages 16–21 above, are
+done — the game is feature-complete, the v1.0 round has a cold start, run
+scoring and grading, a shareable result card, Levels 1–3 translated into
+Bahasa Indonesia, and a 24-achievement Ops Record. Reasonable next moves if
+resuming work on this project (see the in-repo plan this session worked
+from for the full staged breakdown: daily contracts, the rest of content
+i18n, and a second chapter of levels, roughly in that order):
 
-- **Stage 21 — achievements & Ops Record**: ~20–24 local achievements
-  driving off a new `bumpCounter` helper and `profile.counters`, plus a
-  records screen off the Main Menu. Nothing exists yet.
 - **Stage 22 — Daily Contract**: a seeded generator producing a fresh,
   solvable-by-construction contract every UTC day, with `transformRules.ts`
   accepting per-level dynamic rules and `LevelSource` replacing the
