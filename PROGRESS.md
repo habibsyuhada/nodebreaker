@@ -1304,6 +1304,15 @@ its own streak. Reasonable next moves if resuming work on this project
 (see the in-repo plan this session worked from for the full staged
 breakdown — a second chapter of levels is the main remaining item):
 
+- **Chapters 2–4** (current Levels 1–8 become "Chapter 1"): full design
+  plan — new mechanics per level, a visual Boss Map (multiple linked nodes
+  the player can freely move between, not the linear pivots Chapter 1
+  uses), 3 independent solve paths per boss (only 1 required to unlock the
+  next chapter, all 3 individually reward a skin theme), and the theme
+  system itself (unlockable `--color-*` palettes beyond the current
+  green-on-black) — is written up in `CHAPTER_2-4_PLAN.md`. Proposed as
+  Stages 11–21, continuing the numbering below. Not started yet.
+
 - Real human playtesting to tune `parSeconds` per level — see the Stage 18
   notes above; the current values are structural estimates, not measured.
 - Manual real-device testing (an actual phone, not just a Playwright
