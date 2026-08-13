@@ -20,6 +20,8 @@ export interface AchievementDef {
   name: LocalizedText;
   description: LocalizedText;
   isEarned: (ctx: AchievementContext) => boolean;
+  /** Theme.id (src/engine/theme.ts) unlocked the first time this achievement is earned. */
+  rewardThemeId?: string;
 }
 
 function counter(ctx: AchievementContext, key: string): number {
@@ -48,7 +50,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   {
     id: "campaign-complete",
     name: { en: "Full Clear", id: "Bersih Total" },
-    description: { en: "Complete all 8 campaign levels.", id: "Selesaikan semua 8 level kampanye." },
+    description: { en: "Complete all 32 campaign levels.", id: "Selesaikan semua 32 level kampanye." },
     isEarned: (ctx) => LEVELS.every((l) => ctx.completedLevels[l.id]),
   },
   {
@@ -65,6 +67,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
       id: "Raih rank GHOST di semua level kampanye.",
     },
     isEarned: (ctx) => LEVELS.every((l) => ctx.bestRuns[l.id]?.rank === "GHOST"),
+    rewardThemeId: "ch4-analyst",
   },
   {
     id: "speedrunner",
@@ -101,12 +104,14 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     name: { en: "Locksmith", id: "Tukang Kunci" },
     description: { en: "Crack 5 password hashes.", id: "Bongkar 5 hash password." },
     isEarned: (ctx) => counter(ctx, "hashesCracked") >= 5,
+    rewardThemeId: "ch1-analyst",
   },
   {
     id: "codebreaker",
     name: { en: "Codebreaker", id: "Pemecah Kode" },
     description: { en: "Decode 10 encoded clues.", id: "Decode 10 petunjuk terenkode." },
     isEarned: (ctx) => counter(ctx, "decodes") >= 10,
+    rewardThemeId: "ch3-analyst",
   },
   {
     id: "leak-hunter",
@@ -195,6 +200,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     name: { en: "One Week In", id: "Satu Minggu Berjalan" },
     description: { en: "Reach a 7-day Daily Contract streak.", id: "Raih rentetan Kontrak Harian 7 hari." },
     isEarned: (ctx) => ctx.daily.longest >= 7,
+    rewardThemeId: "ch2-analyst",
   },
   {
     id: "dedicated",

@@ -121,12 +121,13 @@ export const UI = {
   close: { en: "Close", id: "Tutup" },
   here: { en: "HERE", id: "DI SINI" },
   visited: { en: "VISITED", id: "DIKUNJUNGI" },
+  pivotAvailable: { en: "PIVOT", id: "PIVOT" },
 
   // NetworkMapHint — {NODE} marks where the accent-colored "NODE" word is inserted, since the
   // two languages order it differently around "bar" ("the NODE bar" vs "bar NODE").
   networkMapHintBody: {
-    en: "You just pivoted. Tap the {NODE} bar above anytime to see every system you've reached and jump between them.",
-    id: "Kamu baru saja pivot. Tap bar {NODE} di atas kapan saja untuk lihat semua sistem yang sudah kamu capai dan berpindah di antaranya.",
+    en: "This target has multiple systems. Tap the {NODE} bar above anytime to see every system you've reached and jump between them.",
+    id: "Target ini punya beberapa sistem. Tap bar {NODE} di atas kapan saja untuk lihat semua sistem yang sudah kamu capai dan berpindah di antaranya.",
   },
   gotIt: { en: "Got it", id: "Mengerti" },
 
@@ -260,5 +261,16 @@ export const UI = {
   dailyContractDoneToday: {
     en: "Today's contract is done. Come back after 00:00 UTC.",
     id: "Kontrak hari ini sudah selesai. Kembali setelah 00:00 UTC.",
+  },
+
+  // ThemeGallery — unlockable skins, entry point in SettingsPanel's "Appearance" section
+  appearanceLabel: { en: "Appearance", id: "Tampilan" },
+  openThemesBtn: { en: "Themes", id: "Tema" },
+  backToSettingsLabel: { en: "‹ Settings", id: "‹ Pengaturan" },
+  themeGalleryTitle: { en: "THEMES", id: "TEMA" },
+  themeActiveLabel: { en: "ACTIVE", id: "AKTIF" },
+  themeUnlockedMonologue: {
+    en: "Theme unlocked: {name}",
+    id: "Tema terbuka: {name}",
   },
 } satisfies Record<string, LocalizedText>;

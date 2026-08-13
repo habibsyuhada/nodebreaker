@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { IconSpeakerMuted, IconSpeakerOn } from "../art/icons";
-import { BASE_PALETTE, LOCK_SPRITE } from "../art/sprites";
+import { LOCK_SPRITE } from "../art/sprites";
 import { Sprite } from "../art/spriteEngine";
+import { useSpritePalette } from "../art/themePalette";
 import { todayUtcSeed } from "../engine/dailyContract";
 import { format } from "../i18n";
 import { UI } from "../i18n/ui";
@@ -133,6 +134,7 @@ export function MainMenu() {
   const accessGrantedCount = useGameStore((s) => Object.keys(s.accessGrantedNodes).length);
   const completedCount = useGameStore((s) => Object.keys(s.completedLevels).length);
   const installAvailable = useInstallAvailable();
+  const palette = useSpritePalette();
   const [exited, setExited] = useState(false);
 
   const hasProgress =
@@ -147,7 +149,7 @@ export function MainMenu() {
   return (
     <div className="relative flex h-full flex-col items-center justify-center gap-6 p-6 text-center">
       <MuteToggle />
-      <Sprite grid={LOCK_SPRITE} palette={BASE_PALETTE} size={64} title="nodebreaker" />
+      <Sprite grid={LOCK_SPRITE} palette={palette} size={64} title="nodebreaker" />
       <div>
         <h1 className="text-lg font-semibold tracking-[0.3em] text-accent">NODEBREAKER</h1>
         <p className="mt-1 text-[10px] tracking-widest text-text-dim">{t(UI.tagline)}</p>

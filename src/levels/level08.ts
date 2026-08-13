@@ -11,12 +11,12 @@ export const LEVEL_08: LevelDef = {
       id: "Target: jaringan korporat Halcyon Dynamics.",
     },
     {
-      en: "One way in, several ways through. The real data is deep — and getting",
-      id: "Satu jalan masuk, beberapa jalan tembus. Data sebenarnya ada di kedalaman — dan untuk",
+      en: "Three ways in — quiet recon, backdoor persistence, or the vendor's own sloppy",
+      id: "Tiga cara masuk — recon senyap, persistence lewat backdoor, atau rotasi ceroboh",
     },
     {
-      en: "out clean will take more than one login.",
-      id: "keluar bersih butuh lebih dari satu login.",
+      en: "rotation. Pick one route. The proof only needs one way through.",
+      id: "milik vendor sendiri. Pilih satu jalur. Buktinya cuma butuh satu jalan masuk.",
     },
   ],
   entryNodeId: "halcyon-edge",
@@ -28,7 +28,12 @@ export const LEVEL_08: LevelDef = {
     },
   ],
   parSeconds: 900,
-  completionRequires: ["exported-core-data"],
+  winPaths: [
+    { id: "ghost", label: { en: "Ghost", id: "Ghost" }, requiredFacts: ["quiet-export-complete"] },
+    { id: "breach", label: { en: "Breach", id: "Breach" }, requiredFacts: ["breach-export-complete"] },
+    { id: "analyst", label: { en: "Analyst", id: "Analyst" }, requiredFacts: ["vendor-ledger-correlated"] },
+  ],
+  bossRewardThemes: { second: "ch1-ghost", third: "ch1-breach" },
   intro: {
     kicker: { en: "SIGNAL INTERCEPT", id: "SADAPAN SINYAL" },
     closer: { en: "Stitch them together.", id: "Sambungkan semuanya." },
@@ -92,8 +97,8 @@ export const LEVEL_08: LevelDef = {
         author: { en: "You", id: "Kamu" },
         body: [
           {
-            en: "One login, four systems tied to everything I've already seen. Get in, get everything, correlate it all at once.",
-            id: "Satu login, empat sistem yang terikat ke semua yang sudah saya lihat. Masuk, ambil semuanya, cocokkan semua sekaligus.",
+            en: "Three ways into this network — recon-only, backdoors, or their own vendor's sloppy rotation. One's enough. Get in, get proof, get out.",
+            id: "Tiga cara masuk ke jaringan ini — recon murni, backdoor, atau rotasi ceroboh milik vendor mereka sendiri. Satu saja cukup. Masuk, ambil bukti, keluar.",
           },
         ],
       },
@@ -113,8 +118,8 @@ export const LEVEL_08: LevelDef = {
         author: { en: "You", id: "Kamu" },
         body: [
           {
-            en: "Backdoors in edge and finance, HR and budget data in hand — ran the correlation. Every case just got the same name at the top.",
-            id: "Backdoor di edge dan finance, data HR dan anggaran di tangan — jalankan korelasi. Setiap kasus baru saja dapat nama yang sama di atasnya.",
+            en: "Didn't need every system — just enough proof from one way in. Ran the correlation anyway once I was out.",
+            id: "Gak perlu semua sistem — cukup bukti dari satu jalan masuk saja. Tetap jalankan korelasi begitu sudah keluar.",
           },
         ],
         answers: "l8-plan",
@@ -245,6 +250,12 @@ export const LEVEL_08: LevelDef = {
           label: { en: "Pivot to 192.168.40.20", id: "Pivot ke 192.168.40.20" },
           requiredFacts: ["found-finance-ip"],
         },
+        {
+          id: "to-vendor",
+          targetNodeId: "halcyon-vendor",
+          label: { en: "Pivot to 198.51.100.77", id: "Pivot ke 198.51.100.77" },
+          requiredFacts: ["found-vendor-ip"],
+        },
       ],
       root: {
         name: "/",
@@ -299,6 +310,21 @@ export const LEVEL_08: LevelDef = {
                 "Bookmark lama akan 404.",
             },
           },
+          {
+            name: "vendor-note.txt",
+            kind: "file",
+            grantsFact: "found-vendor-ip",
+            content: {
+              en:
+                "Contract renewal reminder: Nimbus Systems vendor extranet — " +
+                "[[path:198.51.100.77|Nimbus Systems vendor extranet, external]]. " +
+                "Points of contact updated after the acquisition.",
+              id:
+                "Pengingat perpanjangan kontrak: extranet vendor Nimbus Systems — " +
+                "[[path:198.51.100.77|Extranet vendor Nimbus Systems, eksternal]]. " +
+                "Kontak diperbarui setelah akuisisi.",
+            },
+          },
         ],
       },
     },
@@ -319,6 +345,12 @@ export const LEVEL_08: LevelDef = {
           targetNodeId: "halcyon-core",
           label: { en: "Pivot to 192.168.40.99", id: "Pivot ke 192.168.40.99" },
           requiredFacts: ["found-core-ip"],
+        },
+        {
+          id: "to-hr-archive",
+          targetNodeId: "halcyon-hr-archive",
+          label: { en: "Pivot to 192.168.40.13", id: "Pivot ke 192.168.40.13" },
+          requiredFacts: ["found-archive-ip"],
         },
         {
           id: "to-edge",
@@ -376,6 +408,86 @@ export const LEVEL_08: LevelDef = {
                 "Pengingat: data warehouse telah pindah ke " +
                 "[[path:192.168.40.99|Server korelasi core, hanya internal]]. Perbarui bookmark kamu.",
             },
+          },
+          {
+            name: "archive_access.txt",
+            kind: "file",
+            grantsFact: "found-archive-ip",
+            content: {
+              en:
+                "Cold storage archive — " +
+                "[[path:192.168.40.13|HR records archive, internal-only]]. Service login: " +
+                "[[username:archivebot|Archive service account]] / " +
+                "[[password:C0ldStorage!7|Rotated once, never since]].",
+              id:
+                "Arsip penyimpanan dingin — " +
+                "[[path:192.168.40.13|Arsip rekam HR, hanya internal]]. Login servis: " +
+                "[[username:archivebot|Akun servis arsip]] / " +
+                "[[password:C0ldStorage!7|Pernah dirotasi sekali, tidak pernah lagi]].",
+            },
+          },
+        ],
+      },
+    },
+    {
+      id: "halcyon-hr-archive",
+      ip: "192.168.40.13",
+      orgName: "Halcyon Dynamics — HR Records Archive",
+      traceEnabled: true,
+      ports: [{ port: 22, service: "ssh", banner: "OpenSSH 8.4 | hr-archive-srv" }],
+      users: [{ username: "archivebot", password: "C0ldStorage!7", role: "archive service" }],
+      systemUsers: [
+        { username: "archivebot", role: "archive service" },
+        { username: "root", role: "admin" },
+      ],
+      pivots: [
+        {
+          id: "to-hr",
+          targetNodeId: "halcyon-hr",
+          label: { en: "Pivot to 192.168.40.12", id: "Pivot ke 192.168.40.12" },
+          requiredFacts: [],
+        },
+      ],
+      privilegeEscalations: [
+        {
+          id: "quiet-export",
+          label: { en: "Quiet Export", id: "Ekspor Senyap" },
+          requiredFacts: ["read-hr-data", "read-hr-archive"],
+          grantsFact: "quiet-export-complete",
+          narrationText: [
+            "$ export --mode quiet --sources hr,archive",
+            {
+              en: "No privilege escalation, no backdoor — just what was already readable.",
+              id: "Tanpa eskalasi privilese, tanpa backdoor — cuma yang memang sudah bisa dibaca.",
+            },
+            { en: "Export complete — clean exit.", id: "Ekspor selesai — keluar bersih." },
+            { en: "LEVEL 8 COMPLETE — GHOST ROUTE.", id: "LEVEL 8 SELESAI — JALUR GHOST." },
+          ],
+          requiredFactHints: {
+            "read-hr-data": {
+              en: "Haven't pulled the employee roster yet — read employee_roster.csv on HR (192.168.40.12).",
+              id: "Belum ambil data roster karyawan — baca employee_roster.csv di HR (192.168.40.12).",
+            },
+            "read-hr-archive": {
+              en: "Haven't read the archived reviews yet.",
+              id: "Belum baca ulasan arsip.",
+            },
+          },
+        },
+      ],
+      root: {
+        name: "/",
+        kind: "dir",
+        children: [
+          {
+            name: "archived_reviews.csv",
+            kind: "file",
+            grantsFact: "read-hr-archive",
+            content:
+              "id,name,dept,note\n" +
+              "201,A. Kim,Engineering,flagged 2022 restructuring\n" +
+              "202,B. Torres,Sales,flagged 2023 layoff wave\n" +
+              "203,C. Nguyen,Legal,flagged NDA dispute",
           },
         ],
       },
@@ -457,6 +569,12 @@ export const LEVEL_08: LevelDef = {
           label: { en: "Pivot to 203.0.113.150", id: "Pivot ke 203.0.113.150" },
           requiredFacts: [],
         },
+        {
+          id: "to-backup",
+          targetNodeId: "halcyon-finance-backup",
+          label: { en: "Pivot to 192.168.40.21", id: "Pivot ke 192.168.40.21" },
+          requiredFacts: ["found-backup-ip"],
+        },
       ],
       root: {
         name: "/",
@@ -473,6 +591,23 @@ export const LEVEL_08: LevelDef = {
               id:
                 "Kontak operasi finance — [[username:finops|Akun sistem finance]] / " +
                 "[[email:finops@halcyondynamics.com|Kontak operasi finance — muncul di email vendor]]",
+            },
+          },
+          {
+            name: "backup-note.txt",
+            kind: "file",
+            grantsFact: "found-backup-ip",
+            content: {
+              en:
+                "Nightly backups now route through the ops cloud vault: " +
+                "[[path:192.168.40.21|Backup vault, internal-only]]. Service login: " +
+                "[[username:backupsvc|Backup service account]] / " +
+                "[[password:C1oudVault#3|Shared with the nightly job, never rotated]].",
+              id:
+                "Backup malam hari sekarang lewat brankas cloud ops: " +
+                "[[path:192.168.40.21|Brankas backup, hanya internal]]. Login servis: " +
+                "[[username:backupsvc|Akun servis backup]] / " +
+                "[[password:C1oudVault#3|Dipakai bersama job malam hari, tidak pernah dirotasi]].",
             },
           },
           {
@@ -550,33 +685,69 @@ export const LEVEL_08: LevelDef = {
       },
     },
     {
-      id: "halcyon-core",
-      ip: "192.168.40.99",
-      orgName: "Halcyon Dynamics — Core Data Warehouse",
+      id: "halcyon-finance-backup",
+      ip: "192.168.40.21",
+      orgName: "Halcyon Dynamics — Ops Cloud Backup",
       traceEnabled: true,
-      ports: [{ port: 22, service: "ssh", banner: "OpenSSH 9.0 | core-correlation-srv" }],
-      users: [{ username: "corectl", password: "halcyon2024", role: "core" }],
+      ports: [{ port: 22, service: "ssh", banner: "OpenSSH 8.6 | backup-internal-srv" }],
+      users: [{ username: "backupsvc", password: "C1oudVault#3", role: "backup service" }],
       systemUsers: [
-        { username: "corectl", role: "core" },
+        { username: "backupsvc", role: "backup service" },
         { username: "root", role: "admin" },
+      ],
+      pivots: [
+        {
+          id: "to-finance",
+          targetNodeId: "halcyon-finance",
+          label: { en: "Pivot to 192.168.40.20", id: "Pivot ke 192.168.40.20" },
+          requiredFacts: [],
+        },
       ],
       privilegeEscalations: [
         {
-          id: "export-core-data",
-          label: { en: "Export Data", id: "Ekspor Data" },
-          requiredFacts: ["backdoor-edge", "backdoor-finance", "read-hr-data", "read-finance-data"],
-          grantsFact: "exported-core-data",
+          id: "escalate-backup",
+          label: { en: "Drop Payload", id: "Jatuhkan Payload" },
+          requiredFacts: ["found-backup-cron", "found-backup-dropbox"],
+          grantsFact: "privilege-escalated-backup",
           narrationText: [
-            "$ correlate --sources hr,finance --backdoor-auth edge,finance",
+            "$ drop payload.trigger --target /srv/shared/dropbox",
             {
-              en: "Cross-referencing employee and budget records...",
-              id: "Mencocokkan silang data karyawan dan anggaran...",
+              en: "Waiting for the next sync cycle...",
+              id: "Menunggu siklus sinkronisasi berikutnya...",
             },
             {
-              en: "Export complete — full dataset staged for exfil.",
-              id: "Ekspor selesai — dataset lengkap siap untuk eksfiltrasi.",
+              en: "backup-sync.sh executed your payload as root.",
+              id: "backup-sync.sh menjalankan payload kamu sebagai root.",
             },
-            { en: "LEVEL 8 COMPLETE.", id: "LEVEL 8 SELESAI." },
+            {
+              en: "Privilege escalation successful — admin-level access granted.",
+              id: "Eskalasi privilese berhasil — akses level admin diberikan.",
+            },
+          ],
+          requiredFactHints: {
+            "found-backup-cron": {
+              en: "You don't know what runs as root yet — check the ops runbook.",
+              id: "Kamu belum tahu apa yang berjalan sebagai root — cek ops runbook.",
+            },
+            "found-backup-dropbox": {
+              en: "You don't know where to drop the payload yet — check /srv/shared/dropbox.",
+              id: "Kamu belum tahu di mana harus menaruh payload — cek /srv/shared/dropbox.",
+            },
+          },
+        },
+        {
+          id: "breach-export",
+          label: { en: "Breach Export", id: "Ekspor Paksa" },
+          requiredFacts: ["backdoor-edge", "backdoor-finance", "backdoor-backup"],
+          grantsFact: "breach-export-complete",
+          narrationText: [
+            "$ export --mode backdoor --hosts edge,finance,backup",
+            {
+              en: "Pulling through every planted backdoor at once.",
+              id: "Menarik data lewat semua backdoor yang tertanam sekaligus.",
+            },
+            { en: "Export complete — loud, but total.", id: "Ekspor selesai — berisik, tapi menyeluruh." },
+            { en: "LEVEL 8 COMPLETE — BREACH ROUTE.", id: "LEVEL 8 SELESAI — JALUR BREACH." },
           ],
           requiredFactHints: {
             "backdoor-edge": {
@@ -587,16 +758,193 @@ export const LEVEL_08: LevelDef = {
               en: "No persistent foothold on Finance (192.168.40.20) — escalate privileges there and plant a backdoor.",
               id: "Belum ada pijakan persisten di Finance (192.168.40.20) — eskalasi privilese di sana dan tanam backdoor.",
             },
-            "read-hr-data": {
-              en: "HR records haven't been pulled — read employee_roster.csv on the HR system (192.168.40.12).",
-              id: "Data HR belum diambil — baca employee_roster.csv di sistem HR (192.168.40.12).",
-            },
-            "read-finance-data": {
-              en: "Finance records haven't been pulled — escalate privileges on Finance, then read records/budget_2024.csv.",
-              id: "Data finance belum diambil — eskalasi privilese di Finance, lalu baca records/budget_2024.csv.",
+            "backdoor-backup": {
+              en: "No persistent foothold on this backup vault yet — escalate privileges here first.",
+              id: "Belum ada pijakan persisten di brankas backup ini — eskalasi privilese di sini dulu.",
             },
           },
         },
+      ],
+      backdoors: [
+        {
+          id: "backdoor-backup",
+          label: { en: "Plant Backdoor", id: "Tanam Backdoor" },
+          requiredFacts: ["privilege-escalated-backup"],
+          grantsFact: "backdoor-backup",
+          narrationText: [
+            "$ plant backdoor --target cron.d/backup-sync",
+            {
+              en: "Hiding a persistent hook inside the sync job...",
+              id: "Menyembunyikan hook persisten di dalam job sinkronisasi...",
+            },
+            {
+              en: "Backdoor planted — admin access will survive a credentials reset.",
+              id: "Backdoor tertanam — akses admin akan bertahan meski kredensial direset.",
+            },
+          ],
+          requiredFactHints: {
+            "privilege-escalated-backup": {
+              en: "You need root on this system first — escalate privileges (Drop Payload) before planting a backdoor.",
+              id: "Kamu butuh akses root di sistem ini dulu — eskalasi privilese (Jatuhkan Payload) sebelum menanam backdoor.",
+            },
+          },
+        },
+      ],
+      root: {
+        name: "/",
+        kind: "dir",
+        children: [
+          {
+            name: "ops",
+            kind: "dir",
+            children: [
+              {
+                name: "runbook.txt",
+                kind: "file",
+                grantsFact: "found-backup-cron",
+                content: {
+                  en:
+                    "Ops runbook — backup sync\n\n" +
+                    "backup-sync.sh runs as root every 5 minutes.\n" +
+                    "It reads any *.trigger file from the shared dropbox and executes it, then deletes it.\n" +
+                    "No validation.",
+                  id:
+                    "Runbook operasi — sinkronisasi backup\n\n" +
+                    "backup-sync.sh berjalan sebagai root setiap 5 menit.\n" +
+                    "Script ini membaca file *.trigger apa pun dari dropbox bersama dan menjalankannya, lalu menghapusnya.\n" +
+                    "Tidak ada validasi.",
+                },
+              },
+            ],
+          },
+          {
+            name: "srv",
+            kind: "dir",
+            children: [
+              {
+                name: "shared",
+                kind: "dir",
+                children: [
+                  {
+                    name: "dropbox",
+                    kind: "dir",
+                    children: [
+                      {
+                        name: "README.txt",
+                        kind: "file",
+                        grantsFact: "found-backup-dropbox",
+                        content: {
+                          en:
+                            "Drop zone for the nightly backup sync. Anything placed here gets picked " +
+                            "up automatically.",
+                          id:
+                            "Zona drop untuk sinkronisasi backup malam hari. Apa pun yang ditaruh di sini " +
+                            "akan otomatis diambil.",
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      id: "halcyon-vendor",
+      ip: "198.51.100.77",
+      orgName: "Nimbus Systems — Vendor Extranet",
+      traceEnabled: true,
+      ports: [{ port: 443, service: "https", banner: "nginx 1.22 | Vendor extranet portal" }],
+      users: [{ username: "vendorops", password: "N1mbus#Vend0r", role: "vendor ops" }],
+      systemUsers: [
+        { username: "vendorops", role: "vendor ops" },
+        { username: "root", role: "admin" },
+      ],
+      pivots: [
+        {
+          id: "to-edge",
+          targetNodeId: "halcyon-edge",
+          label: { en: "Pivot to 203.0.113.150", id: "Pivot ke 203.0.113.150" },
+          requiredFacts: [],
+        },
+      ],
+      privilegeEscalations: [
+        {
+          id: "correlate-ledger",
+          label: { en: "Correlate Ledger", id: "Korelasi Buku Besar" },
+          requiredFacts: ["read-vendor-onboarding", "read-vendor-ledger"],
+          grantsFact: "vendor-ledger-correlated",
+          narrationText: [
+            "$ correlate --source vendor-ledger",
+            {
+              en: "Cross-referencing the vendor's own export logs against Halcyon's contracts.",
+              id: "Mencocokkan silang log ekspor milik vendor dengan kontrak Halcyon.",
+            },
+            {
+              en: "Match found — same routing token as the acquisition paperwork.",
+              id: "Kecocokan ditemukan — token routing yang sama dengan berkas akuisisi.",
+            },
+            { en: "LEVEL 8 COMPLETE — ANALYST ROUTE.", id: "LEVEL 8 SELESAI — JALUR ANALYST." },
+          ],
+          requiredFactHints: {
+            "read-vendor-onboarding": {
+              en: "Haven't read the vendor onboarding notice yet.",
+              id: "Belum baca pemberitahuan onboarding vendor.",
+            },
+            "read-vendor-ledger": {
+              en: "Haven't read the ledger export yet — log in first.",
+              id: "Belum baca ekspor buku besar — login dulu.",
+            },
+          },
+        },
+      ],
+      root: {
+        name: "/",
+        kind: "dir",
+        children: [
+          {
+            name: "onboarding.txt",
+            kind: "file",
+            grantsFact: "read-vendor-onboarding",
+            content: {
+              en:
+                "Vendor extranet — [[username:vendorops|Extranet vendor account]] / rotation pattern " +
+                "encoded below (finance insisted): " +
+                "[[encoded:TjFtYnVzI1ZlbmQwcg==|Encoded password pattern left in onboarding notes]]",
+              id:
+                "Extranet vendor — [[username:vendorops|Akun vendor extranet]] / pola rotasi " +
+                "terenkode di bawah (permintaan finance): " +
+                "[[encoded:TjFtYnVzI1ZlbmQwcg==|Pola password terenkode yang tertinggal di catatan onboarding]]",
+            },
+          },
+          {
+            name: "ledger_export.txt",
+            kind: "file",
+            grantsFact: "read-vendor-ledger",
+            content: {
+              en:
+                "Nimbus Systems acquisition ledger — internal routing token: " +
+                "[[hash:5f8a0c2e91b6d4317aa4e2c9f0b1d6a3|Checksum on the ledger export]]",
+              id:
+                "Buku besar akuisisi Nimbus Systems — token routing internal: " +
+                "[[hash:5f8a0c2e91b6d4317aa4e2c9f0b1d6a3|Checksum pada ekspor buku besar]]",
+            },
+          },
+        ],
+      },
+    },
+    {
+      id: "halcyon-core",
+      ip: "192.168.40.99",
+      orgName: "Halcyon Dynamics — Core Data Warehouse",
+      traceEnabled: true,
+      ports: [{ port: 22, service: "ssh", banner: "OpenSSH 9.0 | core-correlation-srv" }],
+      users: [{ username: "corectl", password: "halcyon2024", role: "core" }],
+      systemUsers: [
+        { username: "corectl", role: "core" },
+        { username: "root", role: "admin" },
       ],
       root: {
         name: "/",

@@ -54,6 +54,16 @@ export interface UserAccount {
   username: string;
   password: string;
   role: string;
+  /**
+   * Marks this account as a decoy — a valid-looking login that isn't the intended way in. Logging
+   * in with it still grants node access (it IS a real, working account) but adds
+   * `decoyTracePenalty` (default 20) to trace and appends `decoyWarningText` (warn-toned) to the
+   * terminal, so the player learns they took the bait instead of silently failing — a player who
+   * inspects (tap-hold) or compares before logging in can avoid it.
+   */
+  decoy?: boolean;
+  decoyTracePenalty?: number;
+  decoyWarningText?: LocalizedText[];
 }
 
 /** What the "List Users" recon action reveals — usernames/roles only, no credentials. */
@@ -223,6 +233,31 @@ export interface SceneDef {
   closer?: LocalizedText;
 }
 
+/**
+ * One of a boss level's alternate ways to finish it — a genuinely different target/technique
+ * within the level's node network (e.g. quiet recon vs. privilege-escalation persistence vs.
+ * decode/crack correlation), not just a stealthier variant of the same node. A boss level
+ * completes the moment ANY one path's `requiredFacts` are all discovered (OR across paths,
+ * unlike `completionRequires`'s AND-list) — see `computeLevelComplete` in gameStore.ts.
+ */
+export interface BossWinPath {
+  id: string;
+  /** Short route name shown in the Themes gallery hint text, e.g. "Ghost", "Breach", "Analyst". */
+  label: LocalizedText;
+  requiredFacts: string[];
+}
+
+/**
+ * Skin rewards for a boss level, keyed by ORDINAL count of distinct paths cleared on this level
+ * — not tied to a specific path id. The first path ever cleared (any of them) grants no theme,
+ * only chapter progression; the second distinct path cleared (via replay) unlocks `second`, the
+ * third unlocks `third`. See `checkBossPathRewards` in gameStore.ts.
+ */
+export interface BossRewardThemes {
+  second: string;
+  third: string;
+}
+
 export interface LevelDef {
   id: string;
   index: number;
@@ -236,8 +271,15 @@ export interface LevelDef {
   /**
    * Extra fact ids required (beyond a successful login) before the level counts as complete.
    * E.g. level 3 requires "logs-deleted" — access alone isn't enough, you have to cover your tracks.
+   * Mutually exclusive with `winPaths` — a boss level uses `winPaths` instead of this.
    */
   completionRequires?: string[];
+  /** Boss-only: alternate win conditions. See `BossWinPath`. Requires `bossRewardThemes` alongside it. */
+  winPaths?: BossWinPath[];
+  /** Boss-only: which `Theme.id`s the 2nd/3rd distinct `winPaths` entry cleared unlocks. */
+  bossRewardThemes?: BossRewardThemes;
+  /** Non-boss reward hook: unlocks this `Theme.id` the first time this level is completed. */
+  completionRewardThemeId?: string;
   /** Before-hack scene shown ahead of BriefingDialog — the victim being hurt, then the perpetrator gloating. */
   intro?: SceneDef;
   /** After-hack scene shown once the level completes — mirrors intro cards via SceneCard.answers. */

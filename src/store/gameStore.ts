@@ -16,15 +16,17 @@ import {
   traceLogFactId,
 } from "../engine/traceSystem";
 import { CRACK_DURATION_MS, tryCrack, tryDecode, tryLeakCheck } from "../engine/transformRules";
+import { applyTheme, BASE_THEME_ID, getThemeById } from "../engine/theme";
 import { detectLang, format, t as translate } from "../i18n";
 import type { Lang, LocalizedText } from "../i18n";
 import { UI } from "../i18n/ui";
 import { LEVELS } from "../levels";
+import { isBossLevel } from "../levels/chapters";
 import type { LevelDef, LevelNodeDef } from "../levels/types";
 
 export type PanelId = "terminal" | "files" | "clues" | "settings";
 
-export type ScreenId = "menu" | "levels" | "game" | "settings" | "records";
+export type ScreenId = "menu" | "levels" | "game" | "settings" | "records" | "themes";
 
 /**
  * Which of the two ways `state.level` was resolved — the static `LEVELS` array by index, or a
@@ -86,6 +88,12 @@ export interface ProfileState {
   audio: AudioSettings;
   /** Level ids where a persistent foothold was planted — read by later levels that gate on one. */
   footholds: Record<string, true>;
+  /** Theme.id (src/engine/theme.ts) currently applied. */
+  activeThemeId: string;
+  /** Every Theme.id ever unlocked — always includes the base theme. */
+  unlockedThemeIds: Record<string, true>;
+  /** `${levelId}:${pathId}` for every boss win-path ever cleared — idempotency guard for reward grants, also the basis for "how many distinct paths cleared on this level". */
+  bossPathsCleared: Record<string, true>;
 }
 
 /**
@@ -109,6 +117,9 @@ const DEFAULT_PROFILE: ProfileState = {
   daily: { lastCompletedSeed: null, streak: 0, longest: 0 },
   audio: { muted: false, volume: 0.8 },
   footholds: {},
+  activeThemeId: BASE_THEME_ID,
+  unlockedThemeIds: { [BASE_THEME_ID]: true },
+  bossPathsCleared: {},
 };
 
 const DEFAULT_RUN: RunState = {
@@ -144,6 +155,7 @@ function freshAccount(current: ProfileState) {
   return {
     completedLevels: {} as Record<string, true>,
     networkMapHintShown: false,
+    bossMapHintDismissedIds: {} as Record<string, true>,
     profile: { ...DEFAULT_PROFILE, audio: { ...current.audio } },
     run: { ...DEFAULT_RUN },
   };
@@ -163,6 +175,9 @@ function computeLevelComplete(
   discovered: Record<string, true>,
 ): boolean {
   if (Object.keys(accessGrantedNodes).length === 0) return false;
+  if (level.winPaths && level.winPaths.length > 0) {
+    return level.winPaths.some((p) => p.requiredFacts.every((f) => discovered[f]));
+  }
   const required = level.completionRequires ?? [];
   return required.every((f) => discovered[f]);
 }
@@ -170,6 +185,23 @@ function computeLevelComplete(
 /** Fallback label for a missing fact when the level data doesn't supply a `requiredFactHints` entry. */
 function humanizeFact(fact: string, lang: Lang): string {
   return format(translate(UI.stillMissingFact, lang), { fact: fact.replace(/-/g, " ") });
+}
+
+/**
+ * Marks the Network Map hint as seen for the level currently in progress — boss levels track this
+ * per level id (so the hint re-arms on the next boss), everything else uses the single
+ * account-wide flag (so it's taught once, ever). See `bossMapHintDismissedIds`'s doc comment.
+ */
+function markNetworkMapHintSeen(
+  state: Pick<GameState, "level" | "networkMapHintShown" | "bossMapHintDismissedIds">,
+): Pick<GameState, "networkMapHintShown" | "bossMapHintDismissedIds"> {
+  if (isBossLevel(state.level.id)) {
+    return {
+      networkMapHintShown: state.networkMapHintShown,
+      bossMapHintDismissedIds: { ...state.bossMapHintDismissedIds, [state.level.id]: true },
+    };
+  }
+  return { networkMapHintShown: true, bossMapHintDismissedIds: state.bossMapHintDismissedIds };
 }
 
 /** Lines for a blocked gated action (privilege escalation / backdoor) — shown as a player monologue, not dumped to the terminal. */
@@ -273,10 +305,17 @@ interface GameState {
   setNetworkMapOpen: (open: boolean) => void;
   /**
    * Whether the player has ever opened the Network Map (persisted, account-wide — not per-level).
-   * Gates NetworkMapHint: it appears once, automatically, the first time a level's pivot count
-   * makes the map actually useful, and never again once the player has found it themselves.
+   * Gates NetworkMapHint on regular multi-node levels: shown once, ever, the first time such a
+   * level loads, and never again afterward.
    */
   networkMapHintShown: boolean;
+  /**
+   * Same idea as `networkMapHintShown`, but keyed per boss level id (persisted) instead of a
+   * single account-wide flag — a boss network is a bigger navigation decision each time it's
+   * fought (a handful of independent branches, not just one linear pivot chain), so the nudge
+   * re-arms for every boss even after the player has long since dismissed the generic one.
+   */
+  bossMapHintDismissedIds: Record<string, true>;
   dismissNetworkMapHint: () => void;
 
   currentPath: string[];
@@ -399,6 +438,15 @@ interface GameState {
    * also read, but that isn't itself a counter bump).
    */
   checkAchievements: () => void;
+
+  /** Switches the active theme (no-op if `themeId` isn't unlocked) and applies it to the DOM immediately. */
+  setActiveTheme: (themeId: string) => void;
+  /**
+   * For a boss level (`level.winPaths` set): grants the theme(s) in `level.bossRewardThemes` the
+   * moment the 2nd and 3rd DISTINCT win path (by id, regardless of order) are ever cleared on this
+   * level — the first path cleared grants no theme, only progression. Called from `markLevelComplete`.
+   */
+  checkBossPathRewards: () => void;
 }
 
 function briefingLines(level: LevelDef, lang: Lang): TerminalLine[] {
@@ -477,6 +525,7 @@ interface PersistedState {
   briefingActive: boolean;
   visitedNodeIds: Record<string, true>;
   networkMapHintShown: boolean;
+  bossMapHintDismissedIds: Record<string, true>;
   lang: Lang;
   langChosen: boolean;
   introActive: boolean;
@@ -535,6 +584,20 @@ export const useGameStore = create<GameState>()(
       };
     });
     get().checkAchievements();
+    get().checkBossPathRewards();
+    const rewardThemeId = LEVELS.find((l) => l.id === levelId)?.completionRewardThemeId;
+    if (rewardThemeId && !get().profile.unlockedThemeIds[rewardThemeId]) {
+      set((state) => ({
+        profile: {
+          ...state.profile,
+          unlockedThemeIds: { ...state.profile.unlockedThemeIds, [rewardThemeId]: true },
+        },
+      }));
+      const { lang } = get();
+      get().pushMonologue([
+        format(translate(UI.themeUnlockedMonologue, lang), { name: translate(getThemeById(rewardThemeId).name, lang) }),
+      ]);
+    }
   },
 
   briefingActive: true,
@@ -579,11 +642,16 @@ export const useGameStore = create<GameState>()(
   visitedNodeIds: { [LEVELS[0].entryNodeId]: true },
   networkMapOpen: false,
   setNetworkMapOpen: (open) => {
-    set({ networkMapOpen: open, networkMapHintShown: open || get().networkMapHintShown });
-    if (open) get().bumpCounter("networkMapOpens");
+    if (open) {
+      set((state) => ({ networkMapOpen: open, ...markNetworkMapHintSeen(state) }));
+      get().bumpCounter("networkMapOpens");
+    } else {
+      set({ networkMapOpen: open });
+    }
   },
   networkMapHintShown: false,
-  dismissNetworkMapHint: () => set({ networkMapHintShown: true }),
+  bossMapHintDismissedIds: {},
+  dismissNetworkMapHint: () => set((state) => markNetworkMapHintSeen(state)),
   currentPath: [],
   openFilePath: null,
   inspectingPath: null,
@@ -966,28 +1034,37 @@ export const useGameStore = create<GameState>()(
     set((state) => ({ loginPasswordClueId: state.loginPasswordClueId === id ? null : id })),
 
   confirmLogin: () => {
-    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId, lang } = get();
+    const { level, currentNodeId, clues, loginUsernameClueId, loginPasswordClueId, lang, traceLevel } = get();
     const node = level.nodes.find((n) => n.id === currentNodeId);
     const usernameClue = clues.find((c) => c.id === loginUsernameClueId);
     const passwordClue = clues.find((c) => c.id === loginPasswordClueId);
     if (!node || !usernameClue || !passwordClue) return;
 
-    const success = tryLogin(node, usernameClue.value, passwordClue.value);
+    const matchedUser = node.users.find(
+      (u) => u.username === usernameClue.value && u.password === passwordClue.value,
+    );
+    const success = Boolean(matchedUser);
     const lines: TerminalLine[] = [
       makeLine(`$ login --user ${usernameClue.value} --pass ********`, "input"),
       makeLine("AUTHENTICATING...", "output"),
     ];
     if (success) {
       lines.push(...level.successText.map((t) => makeLine(translate(t, lang), "success")));
+      if (matchedUser?.decoy) {
+        lines.push(...(matchedUser.decoyWarningText ?? []).map((t) => makeLine(translate(t, lang), "warn")));
+      }
     } else {
       lines.push(makeLine("ACCESS DENIED.", "warn"));
     }
+    const nextTrace =
+      success && matchedUser?.decoy ? clampTrace(traceLevel + (matchedUser.decoyTracePenalty ?? 20)) : traceLevel;
 
     set((state) => ({
       terminalLines: [...state.terminalLines, ...lines],
       accessGrantedNodes: success
         ? { ...state.accessGrantedNodes, [currentNodeId]: true }
         : state.accessGrantedNodes,
+      traceLevel: nextTrace,
       run: success ? state.run : { ...state.run, failedLogins: state.run.failedLogins + 1 },
       loginPickerOpen: false,
       loginUsernameClueId: null,
@@ -1158,6 +1235,7 @@ export const useGameStore = create<GameState>()(
   resetProgress: () => {
     useGameStore.persist.clearStorage();
     set(freshAccount(get().profile));
+    applyTheme(getThemeById(BASE_THEME_ID));
     get().loadLevel(0);
   },
 
@@ -1189,11 +1267,64 @@ export const useGameStore = create<GameState>()(
           ...state.profile.achievements,
           ...Object.fromEntries(earned.map((a) => [a.id, now])),
         },
+        unlockedThemeIds: {
+          ...state.profile.unlockedThemeIds,
+          ...Object.fromEntries(
+            earned.filter((a) => a.rewardThemeId).map((a) => [a.rewardThemeId as string, true as const]),
+          ),
+        },
       },
     }));
     for (const a of earned) {
       get().pushMonologue([
         format(translate(UI.achievementUnlockedMonologue, lang), { name: translate(a.name, lang) }),
+      ]);
+      if (a.rewardThemeId) {
+        get().pushMonologue([
+          format(translate(UI.themeUnlockedMonologue, lang), { name: translate(getThemeById(a.rewardThemeId).name, lang) }),
+        ]);
+      }
+    }
+  },
+
+  setActiveTheme: (themeId) => {
+    const { profile } = get();
+    if (!profile.unlockedThemeIds[themeId]) return;
+    applyTheme(getThemeById(themeId));
+    set((state) => ({ profile: { ...state.profile, activeThemeId: themeId } }));
+  },
+
+  checkBossPathRewards: () => {
+    const { level, discovered, profile, lang } = get();
+    const paths = level.winPaths ?? [];
+    if (paths.length === 0 || !level.bossRewardThemes) return;
+    const clearedBefore = new Set(
+      paths.filter((p) => profile.bossPathsCleared[`${level.id}:${p.id}`]).map((p) => p.id),
+    );
+    const newlyCleared = paths.filter(
+      (p) => !clearedBefore.has(p.id) && p.requiredFacts.every((f) => discovered[f]),
+    );
+    if (newlyCleared.length === 0) return;
+    const clearedAfter = new Set([...clearedBefore, ...newlyCleared.map((p) => p.id)]);
+    const themeIds: string[] = [];
+    if (clearedBefore.size < 2 && clearedAfter.size >= 2) themeIds.push(level.bossRewardThemes.second);
+    if (clearedBefore.size < 3 && clearedAfter.size >= 3) themeIds.push(level.bossRewardThemes.third);
+    set((state) => ({
+      profile: {
+        ...state.profile,
+        bossPathsCleared: {
+          ...state.profile.bossPathsCleared,
+          ...Object.fromEntries(newlyCleared.map((p) => [`${level.id}:${p.id}`, true as const])),
+        },
+        unlockedThemeIds: {
+          ...state.profile.unlockedThemeIds,
+          ...Object.fromEntries(themeIds.map((id) => [id, true as const])),
+        },
+      },
+    }));
+    for (const themeId of themeIds) {
+      get().pushMonologue([
+        format(translate(UI.themeUnlockedMonologue, lang), { name: translate(getThemeById(themeId).name, lang) }),
       ]);
     }
   },
@@ -1216,6 +1347,7 @@ export const useGameStore = create<GameState>()(
     briefingActive: state.briefingActive,
     visitedNodeIds: state.visitedNodeIds,
     networkMapHintShown: state.networkMapHintShown,
+    bossMapHintDismissedIds: state.bossMapHintDismissedIds,
     lang: state.lang,
     langChosen: state.langChosen,
     introActive: state.introActive,
@@ -1235,6 +1367,9 @@ export const useGameStore = create<GameState>()(
     // The synth keeps its own copy of the audio settings, so a restored mute has to be pushed
     // into it here — otherwise the first sound of the session plays at the default volume.
     setAudioOutput(profile.audio);
+    // Same idea for the theme: the DOM's CSS custom properties aren't part of React state, so a
+    // restored non-default theme has to be pushed here too, before first paint.
+    applyTheme(getThemeById(profile.activeThemeId));
     const lang = p.lang ?? detectLang();
     return {
       ...(current as GameState),
@@ -1252,6 +1387,7 @@ export const useGameStore = create<GameState>()(
       briefingActive: p.briefingActive ?? true,
       visitedNodeIds: p.visitedNodeIds ?? { [p.currentNodeId ?? level.entryNodeId]: true },
       networkMapHintShown: p.networkMapHintShown ?? false,
+      bossMapHintDismissedIds: p.bossMapHintDismissedIds ?? {},
       lang,
       langChosen: p.langChosen ?? false,
       introActive: p.introActive ?? false,

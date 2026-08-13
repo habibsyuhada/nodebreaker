@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { BASE_PALETTE, LOCK_SPRITE } from "./art/sprites";
+import { LOCK_SPRITE } from "./art/sprites";
 import { Sprite } from "./art/spriteEngine";
+import { useSpritePalette } from "./art/themePalette";
 import { playAmbientPulse, playGlitch } from "./audio/synth";
 import { ActionBar, type ContextAction } from "./components/ActionBar";
 import { BriefingDialog } from "./components/BriefingDialog";
@@ -26,6 +27,7 @@ import { Workbench } from "./panels/Workbench";
 import { LevelSelect } from "./screens/LevelSelect";
 import { MainMenu } from "./screens/MainMenu";
 import { OpsRecord } from "./screens/OpsRecord";
+import { ThemeGallery } from "./screens/ThemeGallery";
 import {
   type PanelId,
   useCurrentNode,
@@ -136,6 +138,7 @@ function BreachedScreen() {
   const setScreen = useGameStore((s) => s.setScreen);
   const run = useGameStore((s) => s.run);
   const bestRun = useGameStore((s) => s.profile.bestRuns[level.id]);
+  const palette = useSpritePalette();
   // A Daily Contract isn't part of LEVELS — level.index is a sentinel (-1) for it, so "next level"
   // only ever applies to the campaign source.
   const nextLevel = levelSource.kind === "campaign" ? LEVELS[levelSource.index + 1] : undefined;
@@ -145,7 +148,7 @@ function BreachedScreen() {
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-      <Sprite grid={LOCK_SPRITE} palette={BASE_PALETTE} size={64} title="unlocked" />
+      <Sprite grid={LOCK_SPRITE} palette={palette} size={64} title="unlocked" />
       <p className="text-sm font-semibold tracking-widest text-accent">{t(UI.nodeBreached)}</p>
       <p className="text-xs text-text-dim">
         {nextLevel ? t(UI.nextTargetOnline) : t(UI.moreLevelsComing)}
@@ -312,6 +315,16 @@ function SettingsPanel() {
             Bahasa Indonesia
           </button>
         </div>
+      </div>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-text-dim">{t(UI.appearanceLabel)}</p>
+        <button
+          type="button"
+          onClick={() => setScreen("themes")}
+          className="min-h-[44px] rounded border border-border px-4 text-xs font-medium tracking-wide text-text-dim active:bg-panel-alt"
+        >
+          {t(UI.openThemesBtn)}
+        </button>
       </div>
       {inGame && (
         <button
@@ -585,6 +598,7 @@ function App() {
         {screen === "levels" && <LevelSelect />}
         {screen === "records" && <OpsRecord />}
         {screen === "settings" && <SettingsPanel />}
+        {screen === "themes" && <ThemeGallery />}
         {screen === "game" && (
           <>
             <TraceTicker />

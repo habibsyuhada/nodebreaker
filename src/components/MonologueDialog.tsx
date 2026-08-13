@@ -1,5 +1,6 @@
-import { BASE_PALETTE, PERSON_SPRITE } from "../art/sprites";
+import { PERSON_SPRITE } from "../art/sprites";
 import { Sprite } from "../art/spriteEngine";
+import { useSpritePalette } from "../art/themePalette";
 import { UI } from "../i18n/ui";
 import { useT } from "../i18n/useT";
 import { useGameStore } from "../store/gameStore";
@@ -13,6 +14,7 @@ export function MonologueDialog() {
   const t = useT();
   const queue = useGameStore((s) => s.monologueQueue);
   const dismissMonologue = useGameStore((s) => s.dismissMonologue);
+  const palette = useSpritePalette();
   const entry = queue[0];
 
   if (!entry) return null;
@@ -27,7 +29,7 @@ export function MonologueDialog() {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">
-          <Sprite grid={PERSON_SPRITE} palette={BASE_PALETTE} size={20} />
+          <Sprite grid={PERSON_SPRITE} palette={palette} size={20} />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-text-bright">{t(UI.youAuthorLabel)}</p>
             <p className="text-[10px] text-text-dim">{t(UI.sessionNotesChannel)}</p>
